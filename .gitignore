@@ -1,0 +1,25 @@
+# Ignore environment-specific files that may contain sensitive info
+.env
+.env.local
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore directories that may contain user-specific content, such as node_modules or vendor
+node_modules/
+vendor/
+
+# Ignore log files and databases
+*.log
+*.sql
+*.sqlite
+
+# IDE-specific settings
+.idea/
+.vscode/
+*.sublime-workspace
+
+# Build output directories
+dist/
+build/
