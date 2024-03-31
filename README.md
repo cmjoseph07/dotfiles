@@ -1,32 +1,34 @@
-Dev Setup:
+# cmjoseph07 dotfiles
 
-OS: MacOS
-- Homebrew (to install all)
+> [!NOTE]
+> Attempt to keep things simple and close to default settings on most things.
 
-Terminal:
-- Kitty
+## OS: MacOS
+    - Homebrew (to install all)
 
-Shell:
-- Fish
-    - Fisher (plugin manager for fish)
+## Terminal:
+    - Kitty
 
-Tools:
-- Github CLI
-- Ripgrep
-- Fzf
-- Fd 
-- Bat
-- Exa
-- Starship
-- Neofetch
-- Zoxide
-- Fzf.fish
-- Nvm.fish
+## Shell:
+    - Fish
+        - Fisher (plugin manager for fish)
 
-Editor:
-- NvChad
+## Tools:
+    - Github CLI
+    - Ripgrep
+    - Fzf
+    - Fd 
+    - Bat
+    - Exa
+    - Starship
+    - Neofetch
+    - Zoxide
+    - Fzf.fish
+    - Nvm.fish
 
-Config files for:
-- Nvim ~/.config/nvim
-- Skhd ~/.config/skhd
-- Yabai ~/.config/yabai
+## Editor:
+    - NvChad
+
+## Window Management
+    - yabai
+    - skhd
