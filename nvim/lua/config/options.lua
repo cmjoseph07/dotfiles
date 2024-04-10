@@ -1,7 +1,7 @@
 local g, opt = vim.g, vim.opt
 
 -- Colorscheme
-g.moonflyTransparent = true
+g.nightflyTransparent = true
 
 -- Default Overrides
 g.maplocalleader = " "
