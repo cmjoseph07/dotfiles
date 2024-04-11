@@ -137,8 +137,8 @@ format = "[$user]($style) "
 disabled = false
 
 [directory]
-home_symbol = ""
-truncation_symbol = "▦ "
+home_symbol = "  "
+truncation_symbol = " "
 read_only = " "
 style = "italic blue"
 format = ' [$path]($style)[$read_only]($read_only_style)'
@@ -153,16 +153,12 @@ ssh_only = true
 format = " ◯[$localipv4](bold magenta)"
 disabled = false
 
-[time]
-disabled = false
-format = "[$time]($style)"
-time_format = "%R"
-utc_time_offset = "local"
-style = "dimmed white"
-
 [git_branch]
 format = "[ $symbol $branch(:$remote_branch)]($style) "
 symbol = "[](bold purple)"
+
+[git_status]
+format = '([\[$all_status$ahead_behind\]]($style))'
 
 [memory_usage]
 symbol = "󰍛 "
