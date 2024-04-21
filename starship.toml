@@ -2,12 +2,9 @@ command_timeout = 10000
 
 format = """
 $os\
-$username\
 $hostname\
 $localip\
-$shlvl\
-$shell\
-$env_var\
+$username\
 $sudo\
 $character\
 """
@@ -83,75 +80,41 @@ $crystal\
 $custom\
 $jobs\
 $status\
-$container\
-$battery\
-$time\
 """
 
 add_newline = true
+
+[hostname]
+format = "[$ssh_symbol$hostname]($style) "
+
+[localip]
+format = "[󰢹 $localipv4](bold fg:#ae81ff) "
+disabled = false
+
+[username]
+show_always = true
+style_user = "bold bright-yellow"
+style_root = "bold bright-purple"
+format = "[$user]($style) "
+disabled = false
+
+[sudo]
+format = "[$symbol]($style)"
+style = "italic bright-purple"
+symbol = " "
+disabled = false
 
 [character]
 format = "$symbol "
 success_symbol = "[◉](bold italic bright-green)"
 error_symbol = "[✗](bold italic bright-red)"
 
-[env_var.VIMSHELL] # vim subshell
-format = "[$env_value]($style)"
-style = 'green italic'
-
-[sudo]
-format = "[$symbol]($style)"
-style = "italic bright-purple"
-symbol = "◇┈"
-disabled = false
-
-[os]
-disabled = false
-
-[os.symbols]
-Windows = "󰍲 "
-Ubuntu = "󰕈 "
-SUSE = " "
-Raspbian = "󰐿 "
-Mint = "󰣭 "
-Macos = "󰀵 "
-Manjaro = " "
-Linux = "󰌽 "
-Gentoo = "󰣨 "
-Fedora = "󰣛 "
-Alpine = " "
-Amazon = " "
-Android = " "
-Arch = "󰣇 "
-Artix = "󰣇 "
-CentOS = " "
-Debian = "󰣚 "
-Redhat = "󱄛 "
-RedHatEnterprise = "󱄛 "
-
-[username]
-show_always = true
-style_user = "bold bright-yellow"
-style_root = "bold purple italic"
-format = "[$user]($style) "
-disabled = false
-
 [directory]
-home_symbol = "  "
+home_symbol = " "
 truncation_symbol = " "
 read_only = " "
-style = "italic blue"
+style = "bold italic blue"
 format = ' [$path]($style)[$read_only]($read_only_style)'
-
-[jobs]
-format = "[ $symbol$number]($style)"
-style = "white"
-symbol = "[▶ ](blue italic)"
-
-[localip]
-ssh_only = true
-format = " ◯[$localipv4](bold magenta)"
-disabled = false
 
 [git_branch]
 format = "[ $symbol $branch(:$remote_branch)]($style) "
@@ -166,47 +129,42 @@ format = " [${ram}( ${swap})]($style)"
 
 [package]
 format = " [$symbol$version]($style)"
-version_format = "${major}.${minor}"
+version_format = "${major}.${minor}.${patch}"
 symbol = "󰏗 "
-style = "bright-yellow italic"
 
 [lua]
 format = " [${symbol}${version}]($style)"
 symbol = "󰢱 "
-style = "italic bright-yellow"
 
 [nodejs]
-format = " [󰎙 ($version)](italic bright-green)"
+format = " [$symbol$version]($style)"
+symbol = "󰎙 "
 detect_files = ["package-lock.json", "yarn.lock"]
-version_format = "${major}.${minor}"
+version_format = "${major}.${minor}.${patch}"
 
 [python]
 format = " [${symbol}${version}]($style)"
 symbol = "󰌠 "
 version_format = "${major}.${minor}"
-style = "italic bright-yellow"
 
 [ruby]
 format = " [${symbol}${version}]($style)"
 symbol = "󰴭 "
 version_format = "${major}.${minor}"
-style = "italic red"
 
 [rust]
 format = " [$symbol$version]($style)"
 symbol = "󱘗 "
 version_format = "${major}.${minor}"
-style = "italic red"
+style = "red dimmed"
 
 [swift]
 format = " [${symbol}${version}]($style)"
 symbol = "󰛥 "
-style = "italic bright-red"
 version_format = "${major}.${minor}"
 
 [aws]
 format = " [$symbol $profile $region]($style)"
-style = "italic blue"
 symbol = "󰸏 "
 
 [c]
@@ -248,3 +206,7 @@ format = " [$symbol($version )]($style)"
 [nix_shell]
 symbol = "󱄅 "
 format = " [$symbol$state $name]($style)"
+
+[jobs]
+format = " [$symbol$number]($style)"
+style = "bold white"
