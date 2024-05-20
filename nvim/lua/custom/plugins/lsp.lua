@@ -38,8 +38,7 @@ return {
         svelte = true,
         templ = true,
         cssls = true,
-
-        -- Probably want to disable formatting for this lang server
+        eslint = true,
         tsserver = true,
 
         jsonls = {
@@ -84,6 +83,12 @@ return {
         "emmet_ls",
         "marksman",
         "svelte",
+        "prettier",
+        "isort",
+        "black",
+        "bashls",
+        "tailwindcss",
+        "eslint",
       }
 
       vim.list_extend(ensure_installed, servers_to_install)
@@ -108,6 +113,11 @@ return {
         callback = function(args)
           local bufnr = args.buf
           local client = assert(vim.lsp.get_client_by_id(args.data.client_id), "must have valid client")
+          if client.name == "eslint" then
+            client.server_capabilities.documentFormattingProvider = true
+          elseif client.name == "tsserver" then
+            client.server_capabilities.documentFormattingProvider = false
+          end
 
           vim.opt_local.omnifunc = "v:lua.vim.lsp.omnifunc"
           vim.keymap.set("n", "gd", vim.lsp.buf.definition, { buffer = 0 })
