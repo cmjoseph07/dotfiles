@@ -1,34 +1,40 @@
 # cmjoseph07 dotfiles
 
 > [!NOTE]
-> Attempt to keep things simple and close to default settings on most things.
+> Attempt to keep things elegant and OS agnostic.
 
-## OS: MacOS
-    - Homebrew (to install all)
+## OS:
+
+  - MacOS: 
+    - PM = Homebrew
+    - WM = yabai + skhd
+  - Windows: WSL2 (Ubuntu)
+    - PM = apt/snap
+    - WM = komorebi
 
 ## Terminal:
-    - Kitty
+
+  - Alacritty
 
 ## Shell:
-    - Fish
-        - Fisher (plugin manager for fish)
+
+  - Fish
+    - Fisher (plugin manager for fish)
 
 ## Tools:
-    - Github CLI
-    - Ripgrep
-    - Fzf
-    - Fd 
-    - Bat
-    - Exa
-    - Starship
-    - Neofetch
-    - Zoxide
-    - Fzf.fish
-    - Nvm.fish
+
+  - Github CLI
+  - Ripgrep
+  - Fzf
+  - Fd
+  - Bat
+  - Exa
+  - Neofetch
+  - Zoxide
+  - Tide
+  - Fzf.fish
+  - Nvm.fish
 
 ## Editor:
-    - NvChad
 
-## Window Management
-    - yabai
-    - skhd
+  - TBD

@@ -1,39 +1,37 @@
-# nightfly nvim theme
-# Syntax highlighting colors.
-set -g fish_color_autosuggestion 4b6479
-set -g fish_color_cancel 4b6479
-set -g fish_color_command 7cb3ff
-set -g fish_color_comment 7c8f8f --italics
-set -g fish_color_cwd 87d787
-set -g fish_color_cwd_root ff5874
-set -g fish_color_end 7c8f8f
-set -g fish_color_error fc514e
-set -g fish_color_escape 7c8f8f
-set -g fish_color_history_current c3ccdc --background=1d3b53
-set -g fish_color_host d6deeb
-set -g fish_color_host_remote d6deeb
-set -g fish_color_keyword c792ea
-set -g fish_color_match c3ccdc --background=1d3b53
-set -g fish_color_normal bdc1c6
-set -g fish_color_operator ff5874
-set -g fish_color_option bdc1c6
-set -g fish_color_param 61d5ae
-set -g fish_color_quote ecc48d
-set -g fish_color_redirection a1cd5e
-set -g fish_color_search_match --background=1d3b53
-set -g fish_color_selection --background=1d3b53
-set -g fish_color_status fc514e
-set -g fish_color_user 21c7a8
-set -g fish_color_valid_path
+# PastelNight Color Palette
+set -l foreground f9fbff
+set -l selection 4b4c58
+set -l comment 6a6c7a
+set -l red ff3d3d
+set -l orange ff7a3d
+set -l yellow fec456
+set -l green 56fe86
+set -l purple ad80d4
+set -l sky 70e4ff
+set -l pink ff89db
 
-# Completion pager colors.
-set -g fish_pager_color_completion c3ccdc
-set -g fish_pager_color_description 7c8f8f
-set -g fish_pager_color_prefix 82aaff
-set -g fish_pager_color_progress 7c8f8f
-set -g fish_pager_color_selected_background --background=1d3b53
-set -g fish_pager_color_selected_completion d6deeb
-set -g fish_pager_color_selected_description d6deeb
+# Syntax Highlighting Colors
+set -g fish_color_normal $foreground
+set -g fish_color_command $sky
+set -g fish_color_keyword $pink
+set -g fish_color_quote $yellow
+set -g fish_color_redirection $foreground
+set -g fish_color_end $orange
+set -g fish_color_error $red
+set -g fish_color_param $purple
+set -g fish_color_comment $comment
+set -g fish_color_selection --background=$selection
+set -g fish_color_search_match --background=$selection
+set -g fish_color_operator $green
+set -g fish_color_escape $pink
+set -g fish_color_autosuggestion $comment
+
+# Completion Pager Colors
+set -g fish_pager_color_progress $comment
+set -g fish_pager_color_prefix $sky
+set -g fish_pager_color_completion $foreground
+set -g fish_pager_color_description $comment
+set -g fish_pager_color_selected_background --background=$selection
 
 # eza
 alias ld='eza -Dl' # List only directories
@@ -43,5 +41,3 @@ alias ls='eza -al --group --header --group-directories-first' # List everything 
 alias lt='eza -al --sort=modified' # List everything sorted by time updated
 
 zoxide init fish | source
-
-starship init fish | source
