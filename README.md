@@ -1,20 +1,17 @@
 # cmjoseph07 dotfiles
 
 > [!NOTE]
-> Attempt to keep things elegant and OS agnostic.
+> Attempt to keep things elegant and close to default.
 
 ## OS:
 
   - MacOS: 
     - PM = Homebrew
     - WM = yabai + skhd
-  - Windows: WSL2 (Ubuntu)
-    - PM = apt/snap
-    - WM = komorebi
 
 ## Terminal:
 
-  - Alacritty
+  - Kitty
 
 ## Shell:
 
@@ -37,4 +34,4 @@
 
 ## Editor:
 
-  - TBD
+  - Zed
