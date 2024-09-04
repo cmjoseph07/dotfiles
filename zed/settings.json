@@ -8,7 +8,7 @@
 // from the command palette or from `Zed` application menu.
 {
   // UI
-  "theme": "Ayu Light",
+  "theme": "Ayu Mirage",
   "buffer_font_family": "MonoLisa",
   "buffer_font_size": 14,
   "buffer_font_features": {
