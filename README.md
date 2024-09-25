@@ -7,11 +7,15 @@
 
   - MacOS: 
     - PM = Homebrew
-    - WM = yabai + skhd
+    - WM = Aerospace
+  - Windows:
+    - PM = Winget
+    - WM = Whim
 
 ## Terminal:
 
-  - Kitty
+  - Kitty (MacOS)
+  - Windows Terminal (Windows)
 
 ## Shell:
 
@@ -20,7 +24,6 @@
 
 ## Tools:
 
-  - Github CLI
   - Ripgrep
   - Fzf
   - Fd
@@ -34,4 +37,5 @@
 
 ## Editor:
 
-  - Zed
+  - Zed (MacOS)
+  - VSCode (Windows)

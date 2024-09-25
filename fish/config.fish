@@ -10,3 +10,7 @@ alias ncu='ncu --interactive --format group'
 set fish_cursor_default block
 
 zoxide init fish | source
+
+# bun
+set --export BUN_INSTALL "$HOME/.bun"
+set --export PATH $BUN_INSTALL/bin $PATH
