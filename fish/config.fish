@@ -10,8 +10,6 @@ alias ncu 'ncu --interactive --format group'
 # cursor
 alias code 'cursor'
 
-### Variables ###
-
 ### Init(s) ###
 zoxide init fish | source
 
