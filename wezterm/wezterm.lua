@@ -12,6 +12,7 @@ config.cursor_blink_rate = 500
 -- Window
 config.term = "xterm-256color"
 config.window_background_opacity = 0.95
+config.window_decorations = "RESIZE"
 config.cell_width = 0.9
 config.font_size = 18.0
 

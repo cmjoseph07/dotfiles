@@ -23,3 +23,6 @@ vendor/
 # Build output directories
 dist/
 build/
+
+# Ignore fish variables
+fish/fish_variables
