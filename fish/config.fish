@@ -1,4 +1,12 @@
 ### Alias ###
+# misc
+alias c 'clear'
+alias g 'git'
+# development
+alias dev 'npm run dev'
+alias server 'nodemon .'
+alias playwright 'npm run test:intergration'
+alias vitest 'npm run vitest'
 # eza
 alias ld 'eza -Dl'             			# List only directories
 alias lf 'eza -fl'            		     	# List only files
