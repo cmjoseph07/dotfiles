@@ -1,7 +1,13 @@
-local wezterm = require "wezterm"
-local config = wezterm.config_builder()
+--[[
+  Main
+]]
 
--- Font
+local wezterm = require "wezterm"
+local act = wezterm.action
+local config = {}
+
+if wezterm.config_builder then config = wezterm.config_builder() end
+
 config.font = wezterm.font("MonoLisa")
 
 -- Cursor
@@ -17,10 +23,24 @@ config.cell_width = 0.9
 config.font_size = 18.0
 
 -- Tabs
-config.hide_tab_bar_if_only_one_tab = true
-config.use_fancy_tab_bar = false
+config.enable_tab_bar = false
+config.enable_scroll_bar = false
+config.switch_to_last_active_tab_when_closing_tab = true
+config.tab_and_split_indices_are_zero_based = false
+config.tab_bar_at_bottom = false
 
 -- Colors
 config.color_scheme = "Ayu Mirage (Gogh)"
+
+-- Windows OS Specific
+if wezterm.target_triple == "x86_64-pc-windows-msvc" then
+  config.default_domain = "WSL:Ubuntu"
+  config.launch_menu = {
+    {
+      label = "PowerShell",
+      args = { "powershell.exe" }
+    }
+  }
+end
 
 return config

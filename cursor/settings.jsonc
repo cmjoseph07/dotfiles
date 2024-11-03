@@ -197,12 +197,7 @@
     "findThenJump2.textDecorationForeground": "#e6e3de",
     "findThenJump2.textDecorationBackground": "#5c5c5e",
     "statusBarItem.remoteBackground": "#00000000",
-    "scrollbarSlider.background": "#00000000",
-    "statusBar.background": "#005f5f",
-    "statusBar.noFolderBackground": "#005f5f",
-    "statusBar.debuggingBackground": "#005f5f",
-    "statusBar.foreground": "#ffffff",
-    "statusBar.debuggingForeground": "#ffffff"
+    "scrollbarSlider.background": "#00000000"
   },
 
   // Todo-Tree
