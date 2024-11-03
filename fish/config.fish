@@ -1,16 +1,21 @@
-# alias
-alias ld='eza -Dl' # List only directories
-alias lf='eza -fFl --color=always' # List only files
-alias lh='eza -dl .* --group --header --group-directories-first' # List only hidden files
-alias ls='eza -al --group --header --group-directories-first' # List everything with directories first
-alias lt='eza -al --sort=modified' # List everything sorted by time updated
-alias pn='pnpm'
-alias ncu='ncu --interactive --format group'
+### Alias ###
+# eza
+alias ld 'eza -Dl'             			# List only directories
+alias lf 'eza -fl'            		     	# List only files
+alias lh 'eza -a | grep "^\."'  	     	# List hidden files
+alias ls 'eza -al --group-directories-first'  	# List everything, directories first
+alias lt 'eza -al -s modified' 		     	# List everything by time modified
+# ncu
+alias ncu 'ncu --interactive --format group'
+# cursor
+alias code 'cursor'
 
-set fish_cursor_default block
+### Variables ###
 
+### Init(s) ###
 zoxide init fish | source
 
-# bun
+### Path/Export ###
+# Bun
 set --export BUN_INSTALL "$HOME/.bun"
 set --export PATH $BUN_INSTALL/bin $PATH

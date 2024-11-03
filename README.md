@@ -1,21 +1,11 @@
 # cmjoseph07 dotfiles
 
 > [!NOTE]
-> Attempt to keep things elegant and close to default.
-
-## OS:
-
-  - MacOS: 
-    - PM = Homebrew
-    - WM = Aerospace
-  - Windows:
-    - PM = Winget
-    - WM = Whim
+> An attempt to keep things elegant, simple and OS-agnostic.
 
 ## Terminal:
 
-  - Kitty (MacOS)
-  - Windows Terminal (Windows)
+  - WezTerm
 
 ## Shell:
 
@@ -24,18 +14,12 @@
 
 ## Tools:
 
-  - Ripgrep
-  - Fzf
-  - Fd
   - Bat
-  - Exa
-  - Neofetch
-  - Zoxide
-  - Tide
+  - Eza
+  - Fd
+  - Fzf
   - Fzf.fish
+  - Neofetch
   - Nvm.fish
-
-## Editor:
-
-  - Zed (MacOS)
-  - VSCode (Windows)
+  - Ripgrep
+  - Zoxide
