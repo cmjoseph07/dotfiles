@@ -149,6 +149,5 @@ alt-shift-k = ['join-with up', 'mode main']
 alt-shift-l = ['join-with right', 'mode main']
 
 [workspace-to-monitor-force-assignment]
-
-N = 'secondary' 
-P = 'secondary'
+8 = 'secondary' 
+9 = 'secondary'
