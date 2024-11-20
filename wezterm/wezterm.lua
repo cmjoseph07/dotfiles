@@ -87,39 +87,43 @@ config.keys = {{
       confirm = true
     }
   }
+},{
+  key = "p",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.CloseCurrentPane { confirm = true },
 }, {
-    key = "1",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.ActivateTab(0)
+  key = "1",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.ActivateTab(0)
 }, {
-    key = "2",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.ActivateTab(1)
+  key = "2",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.ActivateTab(1)
 }, {
-    key = "3",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.ActivateTab(2)
+  key = "3",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.ActivateTab(2)
 }, {
-    key = "4",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.ActivateTab(3)
+  key = "4",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.ActivateTab(3)
 }, {
-    key = "f",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.ShowLauncherArgs {
-        flags = "FUZZY|TABS"
-    }
+  key = "f",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.ShowLauncherArgs {
+    flags = "FUZZY|TABS"
+  }
 }, {
-    key = ",",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.PromptInputLine {
-        description = "Enter new name for tab:",
-        action = wezterm.action_callback(function(window, pane, line)
-            if line then
-                window:active_tab():set_title(line)
-            end
-        end)
-    }
+  key = ",",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.PromptInputLine {
+    description = "Enter new name for tab:",
+    action = wezterm.action_callback(function(window, pane, line)
+      if line then
+        window:active_tab():set_title(line)
+      end
+    end)
+  }
 }, 
 -- Pane navigation
 {
