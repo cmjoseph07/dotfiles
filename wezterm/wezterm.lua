@@ -22,17 +22,15 @@ config.cell_width = 0.9
 config.font_size = 14.0
 
 -- Tabs
-config.enable_tab_bar = false
-config.enable_scroll_bar = false
+config.hide_tab_bar_if_only_one_tab = true
 config.switch_to_last_active_tab_when_closing_tab = true
 config.tab_and_split_indices_are_zero_based = false
-config.tab_bar_at_bottom = false
 
 -- Colors
-config.color_scheme = "Ayu Mirage (Gogh)"
+config.color_scheme = 'Gruber (base16)'
 
 -- OS-Specific Configuration
-if wezterm.target_triple:match("windows") then
+if wezterm.target_triple:match("w indows") then
     config.default_domain = "WSL:Ubuntu"
     config.launch_menu = {{
         label = "PowerShell",
@@ -46,49 +44,49 @@ local is_windows = wezterm.target_triple:match("windows") ~= nil
 -- Leader Key
 
 config.keys = {{
-    key = "v",
-    mods = "CMD",
-    action = act {
-        PasteFrom = "Clipboard"
-    }
+  key = "v",
+  mods = "CMD",
+  action = act {
+    PasteFrom = "Clipboard"
+  }
 }, {
-    key = "c",
-    mods = "CMD",
-    action = act {
-        CopyTo = "Clipboard"
-    }
+  key = "c",
+  mods = "CMD",
+  action = act {
+    CopyTo = "Clipboard"
+  }
 }, {
-    key = "[",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.ActivateCopyMode
+  key = "[",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.ActivateCopyMode
 }, 
 -- Tab navigation
 {
-    key = "l",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.ActivateLastTab
+  key = "l",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.ActivateLastTab
 }, {
-    key = "n",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.ActivateTabRelative(1)
+  key = "n",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.ActivateTabRelative(1)
 }, {
-    key = "p",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.ActivateTabRelative(-1)
+  key = "p",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.ActivateTabRelative(-1)
 }, {
-    key = "c",
-    mods = "CTRL|SHIFT|ALT",
-    action = act {
-        SpawnTab = "CurrentPaneDomain"
+  key = "c",
+  mods = "CTRL|SHIFT|ALT",
+  action = act {
+    SpawnTab = "CurrentPaneDomain"
+  }
+}, {
+  key = "d",
+  mods = "CTRL|SHIFT|ALT",
+  action = act {
+    CloseCurrentTab = {
+      confirm = true
     }
-}, {
-    key = "d",
-    mods = "CTRL|SHIFT|ALT",
-    action = act {
-        CloseCurrentTab = {
-            confirm = true
-        }
-    }
+  }
 }, {
     key = "1",
     mods = "CTRL|SHIFT|ALT",
@@ -181,44 +179,44 @@ config.keys = {{
 },
 -- Workspace navigation
 {
-    key = "x",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.SwitchToWorkspace {
-        name = "default"
-    }
+  key = "x",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.SwitchToWorkspace {
+    name = "default"
+  }
 }, {
-    key = "y",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.SwitchToWorkspace {
-        name = "secondary"
-    }
+  key = "y",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.SwitchToWorkspace {
+    name = "secondary"
+  }
 }, {
-    key = "w",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.ShowLauncherArgs {
-        flags = "FUZZY|WORKSPACES"
-    }
+  key = "w",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.ShowLauncherArgs {
+    flags = "FUZZY|WORKSPACES"
+  }
 }, {
-    key = "s",
-    mods = "CTRL|SHIFT|ALT",
-    action = act.PromptInputLine {
-        description = "Enter new name for session:",
-        action = wezterm.action_callback(function(window, pane, line)
-            if line then
-                wezterm.mux.rename_workspace(wezterm.mux.get_active_workspace(), line)
-            end
-        end)
-    }
+  key = "s",
+  mods = "CTRL|SHIFT|ALT",
+  action = act.PromptInputLine {
+    description = "Enter new name for session:",
+    action = wezterm.action_callback(function(window, pane, line)
+      if line then
+        wezterm.mux.rename_workspace(wezterm.mux.get_active_workspace(), line)
+      end
+    end)
+  }
 },
 -- Disable defaults
 {
-    key = "Enter",
-    mods = "ALT",
-    action = wezterm.action.DisableDefaultAssignment
+  key = "Enter",
+  mods = "ALT",
+  action = wezterm.action.DisableDefaultAssignment
 }, {
-    key = "Tab",
-    mods = "CTRL",
-    action = wezterm.action.DisableDefaultAssignment
+  key = "Tab",
+  mods = "CTRL",
+  action = wezterm.action.DisableDefaultAssignment
 }}
 
 return config

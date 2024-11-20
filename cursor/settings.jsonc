@@ -302,6 +302,5 @@
   "explorer.compactFolders": false,
   "symbols.hidesExplorerArrows": false,
   "remote.autoForwardPortsSource": "hybrid",
-  "git.autofetch": true,
-  "update.mode": "none"
+  "git.autofetch": true
 }
