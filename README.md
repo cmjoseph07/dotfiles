@@ -19,7 +19,7 @@
   - Fd
   - Fzf
   - Fzf.fish
-  - Neofetch
+  - Fastfetch
   - Nvm.fish
   - Ripgrep
   - Zoxide
