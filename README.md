@@ -5,7 +5,7 @@
 
 ## Terminal:
 
-  - WezTerm
+  - Ghostty
 
 ## Shell:
 
