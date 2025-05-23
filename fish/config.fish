@@ -1,22 +1,24 @@
 ### Alias ###
-# misc
+
+# General
 alias c 'clear'
 alias g 'git'
-# development
-alias dev 'npm run dev'
-alias server 'nodemon .'
-alias playwright 'npm run test:intergration'
-alias vitest 'npm run vitest'
+
 # eza
 alias ld 'eza -Dl'             			# List only directories
 alias lf 'eza -fl'            		     	# List only files
 alias lh 'eza -a | grep "^\."'  	     	# List hidden files
 alias ls 'eza -al --group-directories-first'  	# List everything, directories first
-alias lt 'eza -al -s modified' 		     	# List everything by time modified
+alias lt 'eza -al -s modified' 	# List everything by time modified
+
 # ncu
 alias ncu 'ncu --interactive --format group'
-# cursor
+
+# Cursor
 alias code 'cursor'
+
+### Global(s) ###
+set --global hydro_symbol_git_dirty ' •'
 
 ### Init(s) ###
 zoxide init fish | source
