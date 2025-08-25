@@ -3,7 +3,7 @@ if status is-interactive
     alias c 'clear'
 
     if command -v nvim &>/dev/null
-	alias vim 'nvim'
+        alias vim 'nvim'
     end
 
     # Check if frizzante is installed before creating alias

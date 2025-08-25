@@ -7,9 +7,9 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
-  "icon_theme": "Base Charmed Icons",
-  "ui_font_size": 14,
   "buffer_font_size": 14,
+  "ui_font_size": 14,
+  "icon_theme": "Base Charmed Icons",
   "theme": {
     "mode": "system",
     "light": "One Light",
