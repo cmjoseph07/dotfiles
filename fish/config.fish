@@ -1,29 +1,11 @@
-### Alias ###
+# Fish configuration
+# All modular configs are loaded from conf.d/ directory
+# Files are loaded in alphabetical order:
+#   00-environment.fish - Platform detection and PATH setup
+#   01-aliases.fish     - Command aliases
+#   02-integrations.fish - Third-party tool integrations
+#   fzf.fish            - FZF integration (managed by plugin)
+#   hydro.fish          - Hydro prompt (managed by plugin)
+#   nvm.fish            - Node version manager (managed by plugin)
 
-# General
-alias c 'clear'
-alias g 'git'
-
-# eza
-alias ld 'eza -Dl'             			# List only directories
-alias lf 'eza -fl'            		     	# List only files
-alias lh 'eza -a | grep "^\."'  	     	# List hidden files
-alias ls 'eza -al --group-directories-first'  	# List everything, directories first
-alias lt 'eza -al -s modified' 	# List everything by time modified
-
-# ncu
-alias ncu 'ncu --interactive --format group'
-
-# Cursor
-alias code 'cursor'
-
-### Global(s) ###
-set --global hydro_symbol_git_dirty ' •'
-
-### Init(s) ###
-zoxide init fish | source
-
-### Path/Export ###
-# Bun
-set --export BUN_INSTALL "$HOME/.bun"
-set --export PATH $BUN_INSTALL/bin $PATH
+# Any machine-specific configurations can go here or in ~/.config/fish/conf.d/99-local.fish
