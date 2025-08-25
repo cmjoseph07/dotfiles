@@ -1,8 +1,11 @@
 if status is-interactive
     # General
     alias c 'clear'
-    alias g 'git'
-    
+
+    if command -v nvim &>/dev/null
+	alias vim 'nvim'
+    end
+
     # Check if frizzante is installed before creating alias
     if command -v frizzante &>/dev/null
         alias fz 'frizzante'
@@ -20,12 +23,5 @@ if status is-interactive
     # ncu alias with better formatting (only if installed)
     if command -v ncu &>/dev/null
         alias ncu 'ncu --interactive --format group'
-    end
-
-    # Cursor/Code alias
-    if command -v cursor &>/dev/null
-        alias code 'cursor'
-    else if command -v code &>/dev/null
-        # VS Code is already available
     end
 end

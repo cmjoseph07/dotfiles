@@ -19,6 +19,9 @@ vendor/
 .idea/
 .vscode/
 *.sublime-workspace
+zed/conversations
+zed/prompts
+zed/tasks.json
 
 # Build output directories
 dist/

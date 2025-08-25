@@ -5,7 +5,7 @@
 
 ## 🖥️ Editor
 
-- [Neovim](https://github.com/neovim/neovim) - Hyperextensible Vim-based text editor
+- [Zed](https://github.com/zed-industries/zed) - A high-performance, multiplayer code editor from the creators of Atom and Tree-sitter
 
 ## 🐚 Shell
 
