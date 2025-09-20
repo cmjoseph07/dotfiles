@@ -4,6 +4,5 @@ if status is-interactive
         zoxide init fish | source
     end
 
-    # Hydro prompt configuration
-    set --global hydro_symbol_git_dirty ' •'
+    starship init fish | source
 end
