@@ -6,6 +6,5 @@
 #   02-integrations.fish - Third-party tool integrations
 #   fzf.fish            - FZF integration (managed by plugin)
 #   hydro.fish          - Hydro prompt (managed by plugin)
-#   nvm.fish            - Node version manager (managed by plugin)
 
 # Any machine-specific configurations can go here or in ~/.config/fish/conf.d/99-local.fish

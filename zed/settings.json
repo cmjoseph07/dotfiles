@@ -7,6 +7,13 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
+  "autosave": {
+    "after_delay": {
+      "milliseconds": 1000
+    }
+  },
+  "remove_trailing_whitespace_on_save": false,
+
   "buffer_font_size": 14,
   "ui_font_size": 14,
   "icon_theme": "Base Charmed Icons",
@@ -15,6 +22,7 @@
     "light": "One Light",
     "dark": "Gruvbox Baby"
   },
+
   "lsp": {
     "golangci-lint": {
       "initialization_options": {
@@ -29,6 +37,7 @@
       }
     }
   },
+
   "languages": {
     "Go": {
       "language_servers": ["gopls", "golangci-lint"]
