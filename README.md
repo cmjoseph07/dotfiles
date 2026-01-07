@@ -24,6 +24,6 @@
 - [Fd](https://github.com/sharkdp/fd) - Simple, fast and user-friendly alternative to 'find'
 - [Fzf](https://github.com/junegunn/fzf) - Command-line fuzzy finder
 - [Fzf.fish](https://github.com/PatrickF1/fzf.fish) - Augment your fish command line with fzf key bindings
-- [Nvm.fish](https://github.com/jorgebucaran/nvm.fish) - Node.js version manager for fish
+- [Mise](https://github.com/jdx/mise) - dev tools, env vars, task runner
 - [Ripgrep](https://github.com/BurntSushi/ripgrep) - Recursively search directories for a regex pattern
 - [Zoxide](https://github.com/ajeetdsouza/zoxide) - Smarter cd command inspired by z and autojump
