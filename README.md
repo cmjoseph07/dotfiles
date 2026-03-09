@@ -11,6 +11,7 @@
 
 - [Fish](https://github.com/fish-shell/fish-shell) - The friendly interactive shell
   - [Fisher](https://github.com/jorgebucaran/fisher) - Plugin manager for fish
+  - [Pure](https://github.com/pure-fish/pure) - Pretty, minimal and fast fish prompt, ported from zsh.
 
 ## 💻 Terminal
 
