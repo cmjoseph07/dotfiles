@@ -7,25 +7,62 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
-  "project_panel": {
-    "dock": "right"
+  // --- Appearance ---
+  "theme": {
+    "mode": "system",
+    "light": "One Light",
+    "dark": "Gruvbox Baby"
   },
+  "icon_theme": "Base Charmed Icons",
+  "buffer_font_size": 14,
+  "ui_font_size": 14,
+
+  // --- Panels & docks ---
+  "project_panel": {
+    "dock": "left"
+  },
+  "outline_panel": {
+    "dock": "left"
+  },
+  "git_panel": {
+    "dock": "left"
+  },
+  "collaboration_panel": {
+    "dock": "left"
+  },
+
+  // --- Editor behavior ---
   "autosave": {
     "after_delay": {
       "milliseconds": 1000
     }
   },
   "remove_trailing_whitespace_on_save": false,
+  "wrap_guides": [80],
 
-  "buffer_font_size": 14,
-  "ui_font_size": 14,
-  "icon_theme": "Base Charmed Icons",
-  "theme": {
-    "mode": "system",
-    "light": "One Light",
-    "dark": "Gruvbox Baby"
+  // --- AI agent ---
+  "agent": {
+    "dock": "right",
+    "favorite_models": [],
+    "model_parameters": []
+  },
+  "agent_servers": {
+    "claude-acp": {
+      "favorite_config_option_values": {
+        "effort": [
+          "max"
+        ]
+      },
+      "type": "registry"
+    }
   },
 
+  // --- Languages & LSP ---
+  "languages": {
+    "Go": {
+      "language_servers": ["gopls", "golangci-lint"]
+    }
+  },
   "lsp": {
     "golangci-lint": {
       "initialization_options": {
@@ -38,12 +75,6 @@
           "--output.text.path="
         ]
       }
-    }
-  },
-
-  "languages": {
-    "Go": {
-      "language_servers": ["gopls", "golangci-lint"]
     }
   }
 }

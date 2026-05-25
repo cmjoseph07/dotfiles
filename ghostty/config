@@ -1,3 +1,5 @@
 font-family="ZedMono NFM"
 font-size=16
 window-padding-x=10
+macos-option-as-alt = true
+background-opacity = 1.00
