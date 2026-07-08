@@ -3,10 +3,6 @@
 > [!NOTE]
 > An attempt to keep things elegant, simple and OS-agnostic.
 
-## 🖥️ Editor
-
-- [Zed](https://github.com/zed-industries/zed) - A high-performance, multiplayer code editor from the creators of Atom and Tree-sitter
-
 ## 🐚 Shell
 
 - [Fish](https://github.com/fish-shell/fish-shell) - The friendly interactive shell

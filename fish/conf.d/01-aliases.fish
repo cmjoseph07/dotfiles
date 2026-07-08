@@ -1,6 +1,12 @@
 if status is-interactive
     # General
+    alias .. 'cd ..'
     alias c 'clear'
+    alias cc 'claude --dangerously-skip-permissions'
+    alias add = 'git add .'
+    alias push = 'git push'
+    alias pull = 'git pull'
+    alias m = 'git switch main'
 
     if command -v nvim &>/dev/null
         alias vim 'nvim'
