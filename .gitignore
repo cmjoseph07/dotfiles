@@ -1,31 +1,16 @@
-# Ignore environment-specific files that may contain sensitive info
-.env
-.env.local
-
-# Ignore system files
+# macOS Finder metadata
 .DS_Store
-Thumbs.db
 
-# Ignore directories that may contain user-specific content, such as node_modules or vendor
-node_modules/
-vendor/
-
-# Ignore log files and databases
-*.log
-*.sql
-*.sqlite
-
-# IDE-specific settings
-.idea/
-.vscode/
-*.sublime-workspace
-zed/conversations
-zed/prompts
-zed/tasks.json
-
-# Build output directories
-dist/
-build/
-
-# Ignore fish variables
+# fish shell machine-local generated state
 fish/fish_variables
+
+# herdr: only config.toml is portable config; the rest is runtime state, sockets, and logs
+herdr/*
+!herdr/config.toml
+
+# configs not ready to push yet - still refining before they go up
+nvim/
+
+# retired: not cross-platform, kept locally but no longer pushed
+ghostty/
+zed/

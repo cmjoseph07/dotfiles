@@ -15,7 +15,7 @@
 
 ## 💻 Terminal
 
-- [Ghostty](https://github.com/ghostty-org/ghostty) - Fast, feature-rich, and cross-platform terminal emulator
+- [WezTerm](https://github.com/wezterm/wezterm) - GPU-accelerated cross-platform terminal emulator and multiplexer written in Rust
 
 ## 🛠️ Tools
 
