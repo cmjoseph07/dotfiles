@@ -5,9 +5,10 @@
 # prompt line and lands in history that way, so recalling it reruns it in bash.
 # Everything else about Enter is stock fish behavior.
 #
-# Requires fish >= 3.2 (commandline --is-valid). Delete this file to disable.
+# Requires fish >= 3.2 (commandline --is-valid) and bash on PATH; machines
+# without bash keep stock Enter behavior. Delete this file to disable.
 
-if status is-interactive
+if status is-interactive; and command -q bash
     # True when the buffer is complete, valid bash worth diverting.
     function __bash_fallback_wants_bash --argument-names buf
         # begin/switch/end open or close fish blocks yet also parse as plain

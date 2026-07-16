@@ -8,26 +8,19 @@ if status is-interactive
     alias pull 'git pull'
     alias m 'git switch main'
 
-    if command -v nvim &>/dev/null
-        alias vim 'nvim'
-    end
+    command -q nvim; and alias vim 'nvim'
 
-    # Check if frizzante is installed before creating alias
-    if command -v frizzante &>/dev/null
-        alias fz 'frizzante'
-    end
+    command -q frizzante; and alias fz 'frizzante'
 
     # eza aliases (only if eza is installed)
-    if command -v eza &>/dev/null
+    if command -q eza
         alias ld 'eza -Dl'                           # List only directories
         alias lf 'eza -fl'                           # List only files
-        alias lh 'eza -a | grep "^\."'              # List hidden files
+        alias lh 'eza -a | grep "^\."'               # List hidden files
         alias ls 'eza -al --group-directories-first' # List everything, directories first
-        alias lt 'eza -al -s modified'              # List everything by time modified
+        alias lt 'eza -al -s modified'               # List everything by time modified
     end
 
     # ncu alias with better formatting (only if installed)
-    if command -v ncu &>/dev/null
-        alias ncu 'ncu --interactive --format group'
-    end
+    command -q ncu; and alias ncu 'ncu --interactive --format group'
 end

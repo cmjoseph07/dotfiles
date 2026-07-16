@@ -4,6 +4,12 @@
 # fish shell machine-local generated state
 fish/fish_variables
 
+# machine-specific fish overrides, never shared
+fish/conf.d/99-local.fish
+
+# macOS-only app state
+raycast/
+
 # herdr: only config.toml is portable config; the rest is runtime state, sockets, and logs
 herdr/*
 !herdr/config.toml

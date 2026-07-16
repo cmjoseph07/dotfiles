@@ -1,10 +1,10 @@
-# Fish configuration
-# All modular configs are loaded from conf.d/ directory
-# Files are loaded in alphabetical order:
-#   00-environment.fish - Platform detection and PATH setup
-#   01-aliases.fish     - Command aliases
-#   02-integrations.fish - Third-party tool integrations
-#   fzf.fish            - FZF integration (managed by plugin)
-#   hydro.fish          - Hydro prompt (managed by plugin)
-
-# Any machine-specific configurations can go here or in ~/.config/fish/conf.d/99-local.fish
+# Fish configuration.
+# Everything lives in conf.d/, auto-loaded alphabetically before this file:
+#   00-environment.fish   XDG dirs, PATH, editor (every shell)
+#   01-aliases.fish       command aliases (interactive only)
+#   02-integrations.fish  mise, zoxide (interactive only)
+#   03-bash-fallback.fish pasted bash auto-runs through bash -c
+#   04-theme.fish         gruvbox colors
+#   fzf.fish, pure.fish, _pure_init.fish are plugin-managed by fisher
+#
+# Machine-specific config goes in conf.d/99-local.fish (gitignored).

@@ -1,0 +1,5 @@
+# Global git ignore. This is git's default XDG path (~/.config/git/ignore),
+# so it needs no core.excludesfile setting and contains no absolute paths.
+
+# Keep machine-local Claude Code settings out of every repo.
+**/.claude/settings.local.json

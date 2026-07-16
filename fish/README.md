@@ -1,84 +1,53 @@
 # Fish Shell Configuration
 
-This is a portable Fish shell configuration that works across macOS, Linux, and WSL2.
+Portable fish configuration for macOS, Linux, and WSL2.
+Every integration is guarded by an existence check, so a machine missing a tool skips it instead of erroring.
 
 ## Structure
 
 ```
-.config/fish/
-├── config.fish          # Main config (minimal, loads conf.d/)
-├── conf.d/              # Modular config files (auto-loaded)
-│   ├── 00-environment.fish  # Platform detection & PATH setup
-│   ├── 01-aliases.fish      # Command aliases
-│   ├── 02-integrations.fish # Third-party tool integrations
-│   ├── 03-colors.fish       # Color scheme and theme settings
-│   ├── fzf.fish             # FZF integration (plugin-managed)
-│   ├── hydro.fish           # Hydro prompt (plugin-managed)
-│   └── nvm.fish             # Node version manager (plugin-managed)
-├── functions/           # Fish functions (mostly plugin-managed)
-├── completions/         # Command completions (plugin-managed)
-├── fish_plugins         # Plugin list for Fisher
-└── fish_variables       # Fish universal variables
-
+fish/
+├── config.fish              # Minimal; documents the conf.d layout
+├── conf.d/                  # Auto-loaded alphabetically
+│   ├── 00-environment.fish  # XDG dirs, PATH, editor (runs for every shell)
+│   ├── 01-aliases.fish      # Command aliases (interactive only)
+│   ├── 02-integrations.fish # mise, zoxide (interactive only)
+│   ├── 03-bash-fallback.fish# Pasted bash auto-runs through bash -c
+│   ├── 04-theme.fish        # Gruvbox colors
+│   ├── fzf.fish             # Plugin-managed (fisher)
+│   ├── pure.fish            # Plugin-managed (fisher)
+│   └── _pure_init.fish      # Plugin-managed (fisher)
+├── functions/               # fish_greeting + plugin-managed functions
+├── completions/             # Plugin-managed completions
+└── fish_plugins             # Plugin list for fisher
 ```
 
-## Installation on New Machine
+## Design rules
 
-1. Install Fish shell:
-   - macOS: `brew install fish`
-   - Ubuntu/Debian: `sudo apt install fish`
-   - Arch: `sudo pacman -S fish`
-   - WSL2: Use your distro's package manager
-
-2. Clone this config:
-   ```bash
-   git clone <your-repo> ~/.config/fish
-   ```
-
-3. Install Fisher (plugin manager):
-   ```bash
-   curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher
-   ```
-
-4. Install plugins:
-   ```bash
-   fisher update
-   ```
-
-5. Install optional dependencies (as needed):
-   - `eza` - Better ls replacement
-   - `zoxide` - Smarter cd command
-   - `fzf` - Fuzzy finder
-   - `fastfetch` - System info for greeting
-
-## Platform Detection
-
-The configuration automatically detects:
-- macOS (IS_MAC)
-- Linux (IS_LINUX)
-- WSL2 (IS_WSL)
-
-Platform-specific settings are applied automatically.
-
-## Customization
-
-- Machine-specific settings: Create `~/.config/fish/conf.d/99-local.fish`
-- Additional aliases: Edit `conf.d/01-aliases.fish`
-- Environment variables: Edit `conf.d/00-environment.fish`
-- Color scheme: Edit `conf.d/03-colors.fish`
+- All configuration lives in tracked files at global scope.
+  `fish_variables` holds only fisher bookkeeping and pure's auto-generated defaults, and is gitignored.
+- `00-environment.fish` runs for every shell, including non-interactive ones, so scripts, editors, and `ssh host cmd` get the same PATH as a terminal.
+- Interactive-only concerns (aliases, prompt integrations, key bindings) sit behind `status is-interactive`.
+- PATH entries use `fish_add_path -g`: recomputed per shell, deduplicated, and never persisted as universal state.
+- Homebrew is detected across all three prefixes: `/opt/homebrew` (Apple Silicon), `/usr/local` (Intel macOS), `/home/linuxbrew/.linuxbrew` (Linux).
+- mise is activated for interactive shells and exposed to non-interactive shells through its shims directory.
 
 ## Plugins
 
-Managed by Fisher:
-- `jorgebucaran/hydro` - Minimal, fast prompt
-- `jorgebucaran/nvm.fish` - Node version manager
-- `patrickf1/fzf.fish` - FZF integration
-- `patrickf1/colored_man_pages.fish` - Colored man pages
+Managed by fisher via `fish_plugins`:
 
-## Notes
+- `jorgebucaran/fisher` - the plugin manager itself
+- `patrickf1/fzf.fish` - fzf key bindings
+- `patrickf1/colored_man_pages.fish` - colored man pages
+- `pure-fish/pure` - prompt
 
-- PATH additions use `fish_add_path` which prevents duplicates
-- All paths are checked for existence before adding
-- Configuration is modular and loads from `conf.d/` alphabetically
-- Colors and theme settings are in `conf.d/03-colors.fish` (not in fish_variables)
-- Universal variables in `fish_variables` are minimal (only Fisher plugin tracking)
+Node is managed by mise (`mise/config.toml`), not a fish plugin.
+
+## New machine
+
+Handled by `bootstrap.fish` at the repo root; see the top-level README.
+
+## Customization
+
+- Machine-specific settings: create `conf.d/99-local.fish` (gitignored).
+- Everything else: edit the numbered `conf.d/` files directly.
