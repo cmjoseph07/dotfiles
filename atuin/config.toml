@@ -1,7 +1,12 @@
-# Atuin history search: inline panel instead of full-screen takeover.
-style = "compact"
-inline_height = 20
+# Atuin history search.
+# style + inline_height left unset -> atuin defaults (style = "auto", inline_height = 40).
 search_mode = "daemon-fuzzy"
+
+# No background sync to the sync server. History stays local.
+auto_sync = false
+
+# Enter runs the command immediately; Tab puts it on the prompt for editing.
+enter_accept = true
 
 [daemon]
 enabled = true
