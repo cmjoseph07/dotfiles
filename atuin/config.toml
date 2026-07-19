@@ -1,0 +1,3 @@
+# Atuin history search: inline panel instead of full-screen takeover.
+style = "compact"
+inline_height = 20

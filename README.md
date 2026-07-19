@@ -29,18 +29,19 @@ Windows is covered via WSL2; WezTerm on native Windows falls back to PowerShell.
 
 ## 🛠️ Tools
 
+- [Atuin](https://github.com/atuinsh/atuin) - Shell history with sync, stats and context-aware search
 - [Bat](https://github.com/sharkdp/bat) - Cat clone with syntax highlighting and Git integration
 - [Eza](https://github.com/eza-community/eza) - Modern replacement for 'ls'
 - [Fastfetch](https://github.com/fastfetch-cli/fastfetch) - Fast system information tool
 - [Fd](https://github.com/sharkdp/fd) - Simple, fast and user-friendly alternative to 'find'
 - [Fzf](https://github.com/junegunn/fzf) - Command-line fuzzy finder
-- [Fzf.fish](https://github.com/PatrickF1/fzf.fish) - Augment your fish command line with fzf key bindings
 - [Mise](https://github.com/jdx/mise) - dev tools, env vars, task runner
 - [Ripgrep](https://github.com/BurntSushi/ripgrep) - Recursively search directories for a regex pattern
 - [Zoxide](https://github.com/ajeetdsouza/zoxide) - Smarter cd command inspired by z and autojump
 
 ## 🧭 Layout
 
+- `atuin/` - shell history settings; the history db and sync key stay in `~/.local/share/atuin`
 - `fish/` - shell config, see [fish/README.md](fish/README.md)
 - `git/` - git identity and global ignore, at git's XDG default paths so no absolute paths are needed
 - `mise/` - global tool versions (node lts)

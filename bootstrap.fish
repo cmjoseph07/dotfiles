@@ -40,7 +40,7 @@ function _pkg_name --argument-names mgr tool
     end
 end
 
-set -l tools fzf eza bat fd rg zoxide mise fastfetch nvim
+set -l tools atuin fzf eza bat fd rg zoxide mise fastfetch nvim
 set -l missing
 echo
 echo "Tools:"
@@ -84,6 +84,8 @@ if test (count $missing) -gt 0
         test (count $pkgs) -gt 0; and echo "Install missing tools with:  $cmd $pkgs"
         contains $mgr apt dnf
         and echo "(Debian/Fedora note: bat and fd install their binaries as batcat and fdfind.)"
+        test $mgr = apt; and contains atuin $missing
+        and echo "(If apt has no atuin package: curl -LsSf https://setup.atuin.sh | sh)"
     else
         echo "No known package manager found; install manually: $missing"
     end

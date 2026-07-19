@@ -11,10 +11,9 @@ fish/
 ├── conf.d/                  # Auto-loaded alphabetically
 │   ├── 00-environment.fish  # XDG dirs, PATH, editor (runs for every shell)
 │   ├── 01-aliases.fish      # Command aliases (interactive only)
-│   ├── 02-integrations.fish # mise, zoxide (interactive only)
+│   ├── 02-integrations.fish # mise, zoxide, fzf, atuin (interactive only)
 │   ├── 03-bash-fallback.fish# Pasted bash auto-runs through bash -c
 │   ├── 04-theme.fish        # Gruvbox colors
-│   ├── fzf.fish             # Plugin-managed (fisher)
 │   ├── pure.fish            # Plugin-managed (fisher)
 │   └── _pure_init.fish      # Plugin-managed (fisher)
 ├── functions/               # fish_greeting + plugin-managed functions
@@ -37,9 +36,10 @@ fish/
 Managed by fisher via `fish_plugins`:
 
 - `jorgebucaran/fisher` - the plugin manager itself
-- `patrickf1/fzf.fish` - fzf key bindings
 - `patrickf1/colored_man_pages.fish` - colored man pages
 - `pure-fish/pure` - prompt
+
+Key bindings come from tools, not plugins: atuin owns Ctrl-R and up-arrow (history), fzf's native integration owns Ctrl-T (files) and Alt-C (cd).
 
 Node is managed by mise (`mise/config.toml`), not a fish plugin.
 
