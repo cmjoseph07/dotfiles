@@ -41,7 +41,7 @@ Windows is covered via WSL2; WezTerm on native Windows falls back to PowerShell.
 
 ## 🧭 Layout
 
-- `atuin/` - shell history settings; the history db and sync key stay in `~/.local/share/atuin`
+- `atuin/` - shell history settings: compact inline UI, background daemon (autostarts on demand); the history db and sync key stay in `~/.local/share/atuin`
 - `fish/` - shell config, see [fish/README.md](fish/README.md)
 - `git/` - git identity and global ignore, at git's XDG default paths so no absolute paths are needed
 - `mise/` - global tool versions (node lts)
