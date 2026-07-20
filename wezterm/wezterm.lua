@@ -7,6 +7,7 @@ config.color_scheme = "Gruvbox dark, hard (base16)"
 config.font_size = 12.5
 
 -- ── Window ───────────────────────────────────────────────────────────────────
+config.win32_system_backdrop = "Acrylic" -- ignored outside Windows
 config.macos_window_background_blur = 50 -- ignored outside macOS
 config.window_background_opacity = 0.8
 config.window_decorations = "RESIZE"     -- drop title bar, keep resizable borders
