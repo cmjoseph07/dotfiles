@@ -1,3 +1,28 @@
 [user]
 	name = Chris Joseph
 	email = 95969273+cmjoseph07@users.noreply.github.com
+
+[init]
+	defaultBranch = main
+
+[push]
+	# `push` on a fresh branch works with no --set-upstream
+	autoSetupRemote = true
+
+[pull]
+	rebase = true
+
+[rebase]
+	autoStash = true
+
+[fetch]
+	prune = true
+
+[diff]
+	algorithm = histogram
+
+[column]
+	ui = auto
+
+[branch]
+	sort = -committerdate
