@@ -16,10 +16,15 @@ fish/
 │   ├── 04-theme.fish        # Gruvbox colors
 │   ├── pure.fish            # Plugin-managed (fisher)
 │   └── _pure_init.fish      # Plugin-managed (fisher)
-├── functions/               # fish_greeting + plugin-managed functions
-├── completions/             # Plugin-managed completions
+├── functions/               # fish_greeting, lh + plugin-managed functions
+├── completions/             # Tool-installed, gitignored (except fisher's)
 └── fish_plugins             # Plugin list for fisher
 ```
+
+`completions/` is not tracked.
+Tools install their own completions there - OrbStack symlinks `docker`, `kubectl`, and `orbctl` into `/Applications`, and `bun completions` writes its own - so the contents are machine- and OS-specific.
+Committing them would ship dangling macOS symlinks to a Linux clone.
+Only `fisher.fish` is tracked, because fisher is a plugin and follows the same vendoring rule as the `pure` files.
 
 ## Design rules
 
