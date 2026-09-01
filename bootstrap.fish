@@ -33,14 +33,12 @@ function _pkg_name --argument-names mgr tool
             echo fd-find
         case '*:rg'
             echo ripgrep
-        case '*:nvim'
-            echo neovim
         case '*'
             echo $tool
     end
 end
 
-set -l tools atuin fzf eza bat fd rg zoxide mise fastfetch nvim
+set -l tools atuin fzf eza bat fd rg zoxide mise fastfetch
 set -l missing
 echo
 echo "Tools:"

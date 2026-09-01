@@ -36,6 +36,7 @@ Windows is covered via WSL2; WezTerm on native Windows falls back to PowerShell.
 - [Fd](https://github.com/sharkdp/fd) - Simple, fast and user-friendly alternative to 'find'
 - [Fzf](https://github.com/junegunn/fzf) - Command-line fuzzy finder
 - [Mise](https://github.com/jdx/mise) - dev tools, env vars, task runner
+- [Neovim](https://github.com/neovim/neovim) - hyperextensible Vim-based text editor, and the default `$EDITOR`
 - [Ripgrep](https://github.com/BurntSushi/ripgrep) - Recursively search directories for a regex pattern
 - [Zoxide](https://github.com/ajeetdsouza/zoxide) - Smarter cd command inspired by z and autojump
 
@@ -45,6 +46,6 @@ Windows is covered via WSL2; WezTerm on native Windows falls back to PowerShell.
 - `fish/` - shell config, see [fish/README.md](fish/README.md)
 - `git/` - identity, behavior defaults, and global ignore, at git's XDG default paths so no absolute paths are needed
 - `herdr/` - only `config.toml` is tracked; the sockets, logs, and session state alongside it are runtime state
-- `mise/` - global tool versions (node lts)
+- `mise/` - global tool versions (node lts, neovim stable); mise provisions these, so `bootstrap.fish` does not list them as system packages
 - `wezterm/` - terminal config, platform-aware
 - `bootstrap.fish` - new machine setup

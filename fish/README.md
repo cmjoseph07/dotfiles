@@ -46,7 +46,7 @@ Managed by fisher via `fish_plugins`:
 
 Key bindings come from tools, not plugins: atuin owns Ctrl-R and up-arrow (history), fzf's native integration owns Ctrl-T (files) and Alt-C (cd).
 
-Node is managed by mise (`mise/config.toml`), not a fish plugin.
+Node and neovim are managed by mise (`mise/config.toml`), not by fish plugins or the system package manager.
 
 ## New machine
 
