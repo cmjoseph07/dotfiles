@@ -14,9 +14,6 @@ raycast/
 herdr/*
 !herdr/config.toml
 
-# configs not ready to push yet - still refining before they go up
-nvim/
-
 # retired: not cross-platform, kept locally but no longer pushed
 ghostty/
 zed/
