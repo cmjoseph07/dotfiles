@@ -14,9 +14,10 @@ if status is-interactive
 
     # eza aliases (only if eza is installed)
     if command -q eza
+        # lh (list hidden) is a function in functions/lh.fish: it needs a
+        # tolerant glob, which an alias cannot express cleanly.
         alias ld 'eza -Dl'                           # List only directories
         alias lf 'eza -fl'                           # List only files
-        alias lh 'eza -a | grep "^\."'               # List hidden files
         alias ls 'eza -al --group-directories-first' # List everything, directories first
         alias lt 'eza -al -s modified'               # List everything by time modified
     end
