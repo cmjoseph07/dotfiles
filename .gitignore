@@ -31,3 +31,6 @@ hunk/
 # fisher's completion is plugin-managed like the vendored pure files, so it stays.
 fish/completions/*
 !fish/completions/fisher.fish
+
+# lanternhall: private-term denylist, holds the very names it exists to keep out of git
+lanternhall/
