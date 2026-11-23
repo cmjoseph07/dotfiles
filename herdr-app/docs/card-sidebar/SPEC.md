@@ -45,7 +45,7 @@ Build a personal sidebar for one user on one Mac that keeps what already works a
 2. Shipped layouts and mods are read-only and replaced on every app start, so all work lives in clones.
 3. Claude Code sets the terminal title itself, and that title is readable as `agents()[i].title`.
 4. Every Herdr terminal exports `HC_TERMINAL_ID` (verified: `t4` in the session that wrote this spec).
-5. The status line process started by Claude Code inherits that variable (not yet verified, see Open Questions).
+5. The status line process started by Claude Code inherits that variable (verified 2026-11-23 in plan task 3).
 6. `~/.claude/statusline.sh` is the user's own file and may be extended by one write step.
 7. Node 26 is available through mise and can run the unit tests.
 
@@ -67,8 +67,13 @@ herdr-app do layout.clone '{"name":"main","as":"cards"}'
 herdr-app do mod.clone '{"name":"spaces","as":"spaces-cards"}'
 herdr-app do mod.clone '{"name":"agents","as":"agents-context"}'
 
-# Unit tests for pure logic
-node --test herdr-app/mods/spaces-cards/ herdr-app/mods/agents-context/
+# Unit tests for pure logic: one run per mod folder.
+# `node --test` exits 0 when it finds no tests, so a folder with 0 tests fails here.
+(for mod in spaces-cards agents-context; do
+  out=$(node --test --test-reporter=tap "herdr-app/mods/$mod/") && ! grep -qx '# tests 0' <<<"$out" \
+    || { echo "$out"; echo "FAIL $mod"; exit 1; }
+  echo "$mod: $(grep -x '# pass [0-9]*' <<<"$out")"
+done)
 
 # Load check, after every edit
 herdr-app check herdr-app/mods/spaces-cards
@@ -85,6 +90,7 @@ herdr-app shot /tmp/herdr-cards.png
 # Context feed, without a live agent
 echo '{"context_window":{"used_percentage":42}}' | HC_TERMINAL_ID=spec-test bash ~/.claude/statusline.sh
 cat ~/.cache/herdr-context/spec-test.json
+rm ~/.cache/herdr-context/spec-test.json
 ```
 
 ## Project structure
@@ -98,6 +104,7 @@ herdr-app/
     main.js                        the view: init, refresh, render
     model.js                       pure logic, no herdr or gpui imports
     model.test.js                  node --test
+    context.js                     byte-for-byte copy of agents-context/context.js (plan task 6): mods cannot import across folders
     mod.json
   mods/agents-context/
     main.js                        shipped agents list plus the context readout
@@ -167,24 +174,33 @@ Other rules:
 - Clicking the chip opens the shipped `worktree` dialog with `action: "open"` for that repo.
 - A `+` button appears on a repo card on hover and opens the shipped `worktree` dialog with `{ space, action: "new", argv }`, which creates the checkout, opens it as a space and starts `claude` in its first tab.
 - `settings.json` gets `"worktrees": { "directory": "~/Development/worktrees" }`, so checkouts land in `~/Development/worktrees/<repo>/<branch>`.
+  The shipped dialog turns slashes in the branch into dashes for the folder name: branch `feat/x` lands in `<repo>/feat-x`.
 - No git write commands are added to the new mods; creation and removal stay in the shipped `worktree` mod.
 
 ### Context readout
 
 Feed:
 
-- `~/.claude/statusline.sh` writes `~/.cache/herdr-context/$HC_TERMINAL_ID.json` on every run, only when `HC_TERMINAL_ID` is set.
-- Content: `used_percentage`, plus token count, window size, model and session id when Claude Code provides them, and a write timestamp.
-- The write is atomic (temp file, then rename) and never changes what the status line prints.
+- `~/.claude/statusline.sh` writes `~/.cache/herdr-context/$HC_TERMINAL_ID.json` on every run, only when `HC_TERMINAL_ID` is set and is a plain id (1 to 64 letters, digits, `_`, `-`), because it becomes part of a file path.
+- Content: `used_percentage`, plus token count, window size and model when Claude Code provides them, and a write timestamp.
+  No session id: nothing reads it, and it would only add an identifier to a file other processes can read.
+- The write is atomic (a temp file inside the feed folder, then rename) and never changes what the status line prints.
+  The temp file has one fixed name per terminal, so a run killed halfway leaves nothing that the next run does not replace.
+- Input the write step cannot read removes the terminal's feed file, so a change in Claude Code's status line input shows no readout rather than the last good number.
+- The script creates the folder as `0700` and the files as `0600`.
+- The mods treat the feed as untrusted: the terminal address is validated before it becomes a path, and a file counts only when it is a JSON object whose percentage is a number from 0 to 100 and whose write time lies between its terminal's start and now.
+  Anything else shows no readout.
 
 Display:
 
-- `agents-context` shows a thin bar and `NN%` on each Claude Code agent row.
+- `agents-context` shows `NN%` on each Claude Code agent row, right-aligned in a fixed-width slot so the percentages and the times next to them form straight columns.
 - `spaces-cards` shows the highest percentage among the space's agents on line 3.
-- Bands match `~/.claude/statusline.sh` (`sev_color`), so one number never has two colors: under 70 dim, 70 to 89 orange `#ffaf00`, 90 and above red `#ff5f5f`.
+- Bands use the thresholds and warning colors of `~/.claude/statusline.sh` (`sev_color`): 70 to 89 orange `#ffaf00`, 90 and above red `#ff5f5f`.
+  Under 70 the readout is the theme's dim where the status line is blue, so a list of readouts stays quiet until one needs attention.
   These two fixed colors are the status line's colorblind-safe ramp and are the only non-theme colors in the mods.
 - Tooltip on the readout shows tokens used and window size when known.
-- An agent with no feed file, or a file older than its terminal, shows no readout rather than a stale number.
+- An agent with no feed file, or a file older than its terminal (`created_ms` in `terminals()`), shows no readout rather than a stale number.
+- The readout is on agent rows that have a pane; sub-agent rows under a parent and the narrow rail stay as shipped.
 - Refresh is by a gentle timer (about every 5s) only while agents exist, not by a per-frame redraw.
 
 Everything else in `agents-context` is identical to the shipped `agents` mod.
@@ -300,10 +316,39 @@ Never:
 - 2026-11-22 (Checkpoint A review): `settings.json` is tracked even though the app also writes it.
   It is the only place `worktrees.directory` can live, and `AGENTS.md` treats the file as the person's settings rather than app state.
   The zoom keys and the Settings screen save to the same file, so it can show diffs that were not made by hand; review them like any other change.
+- 2026-11-23 (Checkpoint A review): `.gitignore` tracks only `*.md` under `herdr-app/docs/` and only `*.js`, `*.svg` and `mod.json` inside the two mod folders, so screenshots, scratch files and app-written files cannot be committed by accident.
+  `herdr/` joined the retired block, so a TUI config recreated by a later install stays untracked.
+- 2026-11-23 (Checkpoint A review): Unit tests run once per mod folder and a folder with 0 tests fails.
+  `node --test` exits 0 when it finds no test file, which let `agents-context` pass with nothing tested.
+- 2026-11-23 (Checkpoint A review): The feed drops the session id and is treated as untrusted input by the mods; see Context readout.
+- 2026-11-23 (Task 3): The status line inherits `HC_TERMINAL_ID`, so the feed is keyed by terminal id and the session id fallback is not needed.
+  A captured input showed `context_window` holding `used_percentage`, `context_window_size` and `current_usage` (`input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `output_tokens`).
+  The feed's token count is the sum of the three input fields, which is what the percentage is computed from; output tokens are left out.
+  The feed is `{ used_percentage, tokens, window, model, written_at }`, with `written_at` in epoch milliseconds.
+- 2026-11-23 (Task 4): Mods cannot import across mod folders.
+  `import ... from "../agents-context/context.js"` in `spaces-cards` fails both `herdr-app check` and the live reload with "resolves outside the application directory".
+  `spaces-cards` therefore gets its own copy of `context.js` in plan task 6, kept identical by a unit test.
+- 2026-11-23 (Task 4): Synthetic feeds at 75 and 95 and a stale, a malformed and an out-of-range feed were captured in the window.
+  A synthetic 50 could not be held long enough: the live status line rewrites the feed within seconds, which is the feed working as intended.
+  The dim band is shown by the real readings instead.
+- 2026-11-23 (Checkpoint B review): The agent row drops the thin bar and shows `NN%` alone.
+  At 268px the bar cost about 27px of a title budget of about 112px, and at 22px wide it resolved only about 4.5 points per pixel, which the number and its color already say.
+  The percentage and the time each get a fixed-width slot, and the idle and done marks are as wide as the spinner, so both columns are straight down the list and do not move on hover.
+  A space name longer than about 17 characters still takes the whole title budget at 268px in the priority view, leaving no room for the detail; the name wins on purpose.
+- 2026-11-23 (Checkpoint B review): Under 70 the readout stays dim, not the status line's blue.
+  In the sidebar color means an agent needs attention, blue is already the window's accent, and dim to orange is a jump in salience where blue to orange is only a change of hue.
+  The earlier wording, "one number never has two colors", was wrong for this band and is gone.
+- 2026-11-23 (Checkpoint B review): The feed's temp file has a fixed name per terminal instead of a `mktemp` name, and unreadable input removes the feed.
+  Killing the script between `mktemp` and rename left a temp file behind in about a quarter of forced runs, and nothing swept them.
+  Two overlapping runs for one terminal can now produce one malformed file, which the mod rejects and the next run repairs.
+- 2026-11-23 (Checkpoint B review): A unit test runs the real `~/.claude/statusline.sh` against a temporary home and reads the result with `parseFeed`, so a renamed field on either side fails a test instead of blanking the readout.
+  It is skipped where the script or `jq` is absent.
+- 2026-11-23 (Checkpoint B review): The write-time upper bound (`written_at` not after now) stays.
+  It costs one comparison and keeps the rule "between its terminal's start and now" whole; a backward clock step blanks the readout only until the next status line run.
+
 ## Open questions
 
-1. **`HC_TERMINAL_ID` inheritance.**
-   If the status line process does not inherit it, the feed is keyed by session id and the mod maps terminal pid to session through `~/.claude/sessions/<pid>.json`.
-   Same result on screen; settled in plan task 3.
+1. ~~**`HC_TERMINAL_ID` inheritance.**~~
+   Settled 2026-11-23 in plan task 3: it is inherited, see the decisions log.
 2. ~~**Unit test files inside mod folders.**~~
    Settled 2026-11-22 in plan task 2: they stay in the mod folders, see the decisions log.

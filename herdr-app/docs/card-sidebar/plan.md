@@ -1,7 +1,7 @@
 # Implementation plan: Herdr card sidebar
 
 Spec: [SPEC.md](SPEC.md), approved 2026-11-22.
-Status: approved 2026-11-22, Checkpoint A shipped 2026-11-23, Phase 1 next.
+Status: approved 2026-11-22, Checkpoint A shipped 2026-11-23, Checkpoint B shipped 2026-11-23, Phase 2 next.
 Task list target: this file (the project keeps spec, plan and tasks together under `herdr-app/docs/card-sidebar/`, not in `tasks/`).
 
 ## Overview
@@ -18,8 +18,10 @@ Each slice ends in a checkpoint that runs test, review, ship (committed, not pus
   Node can then unit test every decision; `main.js` only reads live data and draws.
 - **Context comes from a file feed, not from parsing transcripts.**
   The status line already receives the exact number; one write step shares it.
-  Both mods read the same feed through the same `context.js`, copied into each mod folder because mods cannot import across folders safely after `mod.clone` rewrites paths.
-  If a cross-mod import turns out to work, keep one copy in `agents-context` and import it.
+  Both mods read the same feed through the same `context.js`, copied into each mod folder.
+  Settled in Task 4: the app refuses an import that leaves the mod's own folder, so `spaces-cards` carries a copy, and a unit test keeps the two files identical.
+- **The feed is untrusted input to the mods.**
+  Any local process can write `~/.cache/herdr-context/`, so `context.js` accepts only a strictly shaped file and shows nothing otherwise.
 - **No git writes in the new mods.**
   Creating, opening and removing checkouts stays in the shipped `worktree` dialog, opened with props.
 - **End to end checks use a scratch repo** (`~/Development/scratch/herdr-e2e`), never the user's real repos.
@@ -42,7 +44,7 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
 
 ## What every checkpoint runs
 
-1. **Test:** `node --test herdr-app/mods/spaces-cards/ herdr-app/mods/agents-context/`, `herdr-app check` on both mods, `herdr-app status` with no errors, no `*.error` files, `herdr-app shot` reviewed at full size.
+1. **Test:** the unit test loop from the spec's Commands section (one `node --test` run per mod folder, failing on a failed test and on a folder with 0 tests, because `node --test` exits 0 when it finds none), `herdr-app check` on both mods, `herdr-app status` with no errors, no `*.error` files, `herdr-app shot` reviewed at full size.
 2. **Review:** five-axis code review of the checkpoint's diff by a fresh reviewer agent (`agent-skills:code-reviewer`), findings fixed or answered, then a simplification pass.
 3. **Ship:** one commit on `main` per message listed at the checkpoint (Checkpoint A lists two, the rest one), no push, no co-author line.
 4. **Report:** a short status with the screenshot path, then stop, ask for approval and give the exact command for the next step.
@@ -57,7 +59,8 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
   - Acceptance:
     - `git status` shows only `.gitignore`, `README.md` and the deleted `herdr/config.toml` for this commit.
     - No tracked file mentions the TUI's `herdr/` folder.
-  - Verify: `git grep -n -i 'herdr/' -- . ':!herdr-app'` returns nothing; `command -v herdr` returns nothing.
+  - Verify: `git grep -n -i 'herdr/' -- . ':!herdr-app' ':!.gitignore'` returns nothing; `command -v herdr` returns nothing.
+  - Checkpoint A review: `herdr/` was added to the retired block of `.gitignore`, so a TUI config recreated by a later install is never tracked by accident; that one mention is expected.
   - Dependencies: none.
   - Files: `.gitignore`, `README.md`, `herdr/config.toml`.
 
@@ -80,33 +83,42 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
 
 ### Phase 1: Context readout
 
-- [ ] **Task 3: Context feed from the status line** (S)
+- [x] **Task 3: Context feed from the status line** (S)
   - Description: Capture one real status line input to learn the exact `context_window` fields, then add the write step to `~/.claude/statusline.sh`: atomic write of `~/.cache/herdr-context/$HC_TERMINAL_ID.json`, only when the variable is set.
+    The variable becomes part of a file path, so the step validates it first (letters, digits, `_` and `-` only) and writes nothing otherwise.
+    The temp file has one fixed name per terminal inside the feed folder, so the rename stays on one filesystem and a killed run leaves nothing the next run does not replace; the folder is `0700` and the files `0600`.
+    The feed carries no session id.
     Settles spec open question 1; if the variable is not inherited, switch the key to session id and record the fallback in the spec before continuing.
   - Acceptance:
     - Status line stdout is byte-identical before and after for the same input.
     - A live Claude Code session in a Herdr terminal produces `~/.cache/herdr-context/<its terminal id>.json` holding the percentage its status line shows.
-    - With `HC_TERMINAL_ID` unset the script writes nothing and prints as before.
-  - Verify: `diff` of stdout from the old and new script on the captured input; `cat` of the feed file for this session's terminal; run once with the variable unset and confirm no new file.
+    - With `HC_TERMINAL_ID` unset, or set to anything that is not a plain id (`../x`, `a/b`, empty), the script writes nothing and prints as before.
+    - The feed folder is `0700`, feed files are `0600`, no temp file is left behind, and no feed file contains a session id.
+  - Verify: `diff` of stdout from the old and new script on the captured input; `cat` of the feed file for this session's terminal; run once with the variable unset and once with a hostile value and confirm no new file; `stat` of the folder and a file.
   - Dependencies: none (parallel to Task 2).
   - Files: `~/.claude/statusline.sh`.
 
-- [ ] **Task 4: Context readout in the agents list** (M)
-  - Description: Add `context.js` (parse a feed file, reject stale or malformed ones, choose the band) with tests written first, then show the thin bar and `NN%` on each Claude Code agent row with a tooltip for tokens and window size.
+- [x] **Task 4: Context readout in the agents list** (M)
+  - Description: Add `context.js` (parse a feed file, reject stale or malformed ones, choose the band) with tests written first, then show `NN%` on each Claude Code agent row with a tooltip for tokens and window size.
     A gentle timer rereads feeds only while agents exist.
+    The mod treats the feed as untrusted: the terminal address is validated before it becomes a path, and a file is used only when it is a JSON object with a percentage from 0 to 100 and a write time between its terminal's start and now.
+    Also settle how `spaces-cards` will reach `context.js` for Task 6: try a cross-mod import (`../agents-context/context.js`) under `herdr-app check` and in the live window, including whether saving `context.js` reloads the importing mod, then record the outcome in the spec's decisions log and project structure.
   - Acceptance:
     - This session's agent row shows a percentage within 2 points of its status line, updated within 10s.
     - 69, 70, 89 and 90 land in the dim, orange, orange and red bands in unit tests.
     - A missing, malformed or older-than-terminal feed shows no readout, in tests and in the window.
-  - Verify: `node --test herdr-app/mods/agents-context/`; `herdr-app check herdr-app/mods/agents-context`; `herdr-app shot`, compared with the status line; temporary feed files at 50, 75 and 95 to capture each band, then removed.
+    - Out-of-range, non-numeric and future-dated feeds show no readout in unit tests.
+    - The cross-mod import question has a recorded answer, and Task 6's file list matches it.
+  - Verify: the unit test loop for `agents-context`; `herdr-app check herdr-app/mods/agents-context`; `herdr-app shot`, compared with the status line; temporary feed files at 50, 75 and 95 to capture each band, then removed.
   - Dependencies: Tasks 2, 3.
   - Files: `mods/agents-context/main.js`, `mods/agents-context/context.js`, `mods/agents-context/context.test.js`.
+  - Checkpoint B review: the thin bar was dropped for `NN%` alone in a fixed-width slot, `band` and `BAND_COLORS` became one `bandColor`, and the feed step got a fixed temp name and removes the feed on unreadable input; see the spec's decisions log.
 
 ### Checkpoint B: Context readout
 
-- [ ] Test, review, ship as above.
-- [ ] Commit: `feat(herdr-app): show context usage in the agents list`.
-- [ ] Spec success criteria 7 and 8 demonstrated.
+- [x] Test, review, ship as above.
+- [x] Commit: `feat(herdr-app): show context usage in the agents list`.
+- [x] Spec success criteria 7 and 8 demonstrated.
 
 ### Phase 2: Space cards
 
@@ -118,18 +130,20 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
     - Both open spaces show a title that is not just the folder name.
     - A 40+ character branch shows both ends, and the tooltip shows all of it.
     - Title rules 1 to 4 each have a passing unit test, including the "telling" rejections (path, address, program name, `@`).
-  - Verify: `node --test herdr-app/mods/spaces-cards/`; `herdr-app check herdr-app/mods/spaces-cards`; shots at 268px and 480px and in narrow rail, with a nested worktree space from the scratch repo.
+  - Verify: the unit test loop for `spaces-cards`; `herdr-app check herdr-app/mods/spaces-cards`; shots at 268px and 480px and in narrow rail, with a nested worktree space from the scratch repo.
   - Dependencies: Task 2.
   - Files: `mods/spaces-cards/main.js`, `mods/spaces-cards/model.js`, `mods/spaces-cards/model.test.js`.
 
 - [ ] **Task 6: State slot, agent icons and context on the card** (M)
   - Description: Fill line 1's right side by the space's most urgent status (pill, spinner with elapsed, done dot, age) and line 3's right side with the space's agent program icons and its highest context percentage.
     Age and elapsed formatting and "highest context" go in pure modules, tests first.
+    `context.js` is a byte-for-byte copy of the one in `agents-context` (Task 4 settled that mods cannot import across folders); a test in `model.test.js` fails when the two files differ.
     Spinner and any motion are native, with no redraw timer.
   - Acceptance:
     - Blocked, working, done and idle each show the spec's slot content in the live window.
     - Age formats as `just now`, `5m`, `2h`, `3d` at the boundaries in unit tests.
     - The card's context percentage equals the highest among its agents' rows in the list below.
+    - Changing either copy of `context.js` alone fails the unit tests.
   - Verify: unit tests; `herdr-app check`; one shot per status, produced with a real agent in the scratch repo space.
   - Dependencies: Tasks 4, 5.
   - Files: `mods/spaces-cards/main.js`, `mods/spaces-cards/model.js`, `mods/spaces-cards/model.test.js`, `mods/spaces-cards/context.js`.
@@ -170,6 +184,7 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
     The button stops the press so it does not start a card drag or select.
   - Acceptance:
     - From the scratch repo card, `+` and a branch name create `~/Development/worktrees/herdr-e2e/<branch>`, open it as a nested space and start `claude` there.
+      The shipped dialog turns slashes in the branch into dashes for the folder, so branch `feat/x` lands in `herdr-e2e/feat-x`; test with a branch that has a slash.
     - Clicking `+` never selects or drags the card.
   - Verify: `git -C ~/Development/scratch/herdr-e2e worktree list`; `herdr-app ls` shows the new space with a `claude-code` terminal; shot of the hover state and of the result.
   - Dependencies: Task 8.
@@ -207,4 +222,4 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
 ## Open questions
 
 None that block the build.
-The spec's test-location question was settled in Task 2; its one remaining open question is settled inside Task 3.
+The spec's test-location question was settled in Task 2 and its `HC_TERMINAL_ID` question in Task 3.

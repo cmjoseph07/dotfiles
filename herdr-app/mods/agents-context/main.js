@@ -2,7 +2,8 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout } from "herdr";
+import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout, home, readTextFile } from "herdr";
+import { bandColor, describe, feedPath, parseFeed } from "./context.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -90,6 +91,28 @@ export default class Agents extends View {
     if (!this.pendingPins.length) localStorage.removeItem("pins");
     this.migratingPins = new Set();
     cx.timer.every(30000, (cx) => cx.notify());
+    // Each Claude Code agent's context reading, by address.
+    this.context = new Map();
+    cx.timer.every(5000, (cx) => this.readContext(cx));
+    this.readContext(cx);
+  }
+
+  // Rereads the feed of every Claude Code agent; redraws only when a reading changed.
+  readContext(cx) {
+    const claude = agents().filter((a) => a.app === "claude-code");
+    if (!claude.length && !this.context.size) return;
+    const started = new Map(terminals().map((k) => [k.address, k.created_ms]));
+    cx.spawn(async (cx) => {
+      const readings = await Promise.all(claude.map(async (a) => {
+        const path = feedPath(home(), a.address);
+        const text = path ? await readTextFile(path).catch(() => null) : null;
+        return [a.address, parseFeed(text, started.get(a.address), Date.now())];
+      }));
+      const next = new Map(readings.filter(([, reading]) => reading));
+      if (JSON.stringify([...next]) === JSON.stringify([...this.context])) return;
+      this.context = next;
+      cx.notify();
+    });
   }
 
   // Stamps agents whose state changed. Done and idle count as one: looking at a
@@ -211,9 +234,9 @@ export default class Agents extends View {
     if (a.status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).mx(1).flex_none().text_color(t.working).spin(900);
     if (a.status === "blocked" && compact) return div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
     if (a.status === "blocked") return div().flex_none().px(6).h(18).rounded(5).bg(t.blocked + "26").text_size(10.5).font_semibold().text_color(t.blocked).flex().items_center().child("Needs you");
-    // Idle: a ring; done: a dot.
-    if (a.status === "idle") return div().size(7).mx(3).flex_none().rounded(4).border(1.5).border_color(t.idle ?? t.dim);
-    return div().size(7).mx(3).flex_none().rounded(4).bg(a.status === "done" ? color : t.dim + "00");
+    // Idle: a ring; done: a dot. Both as wide as the spinner, so the columns to their left line up.
+    if (a.status === "idle") return div().size(7).mx(3.5).flex_none().rounded(4).border(1.5).border_color(t.idle ?? t.dim);
+    return div().size(7).mx(3.5).flex_none().rounded(4).bg(a.status === "done" ? color : t.dim + "00");
   }
 
   render(cx) {
@@ -314,6 +337,7 @@ export default class Agents extends View {
           .child(h_flex().w(14).flex_none().items_center().justify_center().child(this.status(t, a, true)));
       }
       const when = this.since(a);
+      const reading = this.context.get(a.address);
       const idle = a.status === "idle" && !a.focused;
       const isPinned = a.pinned;
       const pin = div()
@@ -365,8 +389,11 @@ export default class Agents extends View {
           .when(full && Boolean(more), el => el.child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(`\u00b7 ${more}`))))
         .when(Boolean(machine), el => el.child(div().text_size(10).text_color(t.dim).child(machine)))
         .when(subs.length > 0, el => el.child(fold(a, subs)))
-        .when(this.hovered === a.address, el => el.child(pin))
-        .when(this.hovered !== a.address && Boolean(when), el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(duration(now - when))))
+        // Fixed widths keep the percentage and the time in straight columns down the list.
+        .when(Boolean(reading), el => el.child(div().id(`ctx-${a.address}`).flex_none().w(30).text_right().text_size(11)
+          .text_color(bandColor(reading.percent) ?? t.dim).tooltip(describe(reading)).child(`${reading.percent}%`)))
+        .when(this.hovered === a.address || Boolean(when), el => el.child(h_flex().flex_none().w(24).justify_end()
+          .child(this.hovered === a.address ? pin : div().text_size(11).text_color(t.dim).child(duration(now - when)))))
         .child(this.status(t, a, byPriority && !isPinned));
     };
 

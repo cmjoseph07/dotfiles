@@ -14,6 +14,9 @@ raycast/
 # every start, so only the personal clones, settings and their docs are tracked
 herdr-app/*
 !herdr-app/docs/
+herdr-app/docs/**
+!herdr-app/docs/**/
+!herdr-app/docs/**/*.md
 !herdr-app/settings.json
 !herdr-app/layouts/
 herdr-app/layouts/*
@@ -22,11 +25,16 @@ herdr-app/layouts/*
 herdr-app/mods/*
 !herdr-app/mods/spaces-cards/
 !herdr-app/mods/agents-context/
-herdr-app/mods/*/*.d.ts
-herdr-app/mods/*/jsconfig.json
+# inside a tracked mod only its own sources: the app adds type files and
+# jsconfig.json to every mod folder
+herdr-app/mods/*/*
+!herdr-app/mods/*/*.js
+!herdr-app/mods/*/*.svg
+!herdr-app/mods/*/mod.json
 
 # retired: not cross-platform, kept locally but no longer pushed
 ghostty/
+herdr/
 zed/
 
 # gh: account-bound, differs between work and personal machines
