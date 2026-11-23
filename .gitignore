@@ -10,10 +10,6 @@ fish/conf.d/99-local.fish
 # macOS-only app state
 raycast/
 
-# herdr: only config.toml is portable config; the rest is runtime state, sockets, and logs
-herdr/*
-!herdr/config.toml
-
 # retired: not cross-platform, kept locally but no longer pushed
 ghostty/
 zed/
