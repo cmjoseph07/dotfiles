@@ -10,6 +10,21 @@ fish/conf.d/99-local.fish
 # macOS-only app state
 raycast/
 
+# herdr-app: the app rewrites its shipped layouts, mods, type files and state on
+# every start, so only the personal clones, settings and their docs are tracked
+herdr-app/*
+!herdr-app/docs/
+!herdr-app/settings.json
+!herdr-app/layouts/
+herdr-app/layouts/*
+!herdr-app/layouts/cards.json
+!herdr-app/mods/
+herdr-app/mods/*
+!herdr-app/mods/spaces-cards/
+!herdr-app/mods/agents-context/
+herdr-app/mods/*/*.d.ts
+herdr-app/mods/*/jsconfig.json
+
 # retired: not cross-platform, kept locally but no longer pushed
 ghostty/
 zed/

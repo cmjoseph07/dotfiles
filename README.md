@@ -45,6 +45,7 @@ Windows is covered via WSL2; WezTerm on native Windows falls back to PowerShell.
 - `atuin/` - shell history settings: compact inline UI, background daemon (autostarts on demand); the history db and sync key stay in `~/.local/share/atuin`
 - `fish/` - shell config, see [fish/README.md](fish/README.md)
 - `git/` - identity, behavior defaults, and global ignore, at git's XDG default paths so no absolute paths are needed
+- `herdr-app/` - Herdr desktop app: only the personal `cards` layout, its two cloned sidebar mods, `settings.json`, and `docs/` are tracked; shipped layouts, mods, type files, and app state are rewritten by the app
 - `mise/` - global tool versions (node lts, neovim stable); mise provisions these, so `bootstrap.fish` does not list them as system packages
 - `nvim/` - LazyVim config; `lazy-lock.json` pins plugin versions so a fresh clone reproduces the same setup
 - `wezterm/` - terminal config, platform-aware
