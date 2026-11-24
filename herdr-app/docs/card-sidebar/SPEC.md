@@ -1,6 +1,6 @@
 # Spec: Herdr card sidebar
 
-Status: approved 2026-11-22.
+Status: done 2026-11-24 (approved 2026-11-22).
 Plan and task list: [plan.md](plan.md).
 Source: grill session of 2026-11-22, decisions Q1 to Q21.
 
@@ -120,6 +120,32 @@ herdr-app/
 
 Tracked in the `~/.config` repo: `herdr-app/docs/`, `herdr-app/layouts/cards.json`, `herdr-app/mods/spaces-cards/`, `herdr-app/mods/agents-context/`, `herdr-app/settings.json`.
 Everything else under `herdr-app/` is ignored: app-written state, shipped mods and layouts, `*.d.ts`, `jsconfig.json`, sockets.
+
+## Keeping the clones current
+
+Herdr replaces its own layouts and mods on every update and never updates a clone, so a clone keeps the code of the version it was made from.
+Each clone records that version as `cloned_from` (in its `mod.json`, or at the top of the layout file).
+
+Re-diff after an update, when `herdr-app --version` is newer than a clone's `cloned_from.version`.
+Commit `9a7be8c` holds the clones as first made from 0.1.16, so comparing it with the shipped files shows what Herdr changed since.
+Run from `~/.config`:
+
+```sh
+git show 9a7be8c:herdr-app/mods/spaces-cards/main.js | diff - herdr-app/mods/spaces/main.js
+bash -c 'diff <(git show 9a7be8c:herdr-app/mods/spaces-cards/mod.json | jq -S .) <(jq -S . herdr-app/mods/spaces/mod.json)'
+git show 9a7be8c:herdr-app/mods/agents-context/main.js | diff - herdr-app/mods/agents/main.js
+bash -c 'diff <(git show 9a7be8c:herdr-app/mods/agents-context/mod.json | jq -S .) <(jq -S . herdr-app/mods/agents/mod.json)'
+bash -c 'diff <(git show 9a7be8c:herdr-app/layouts/cards.json | jq -S .) <(jq -S . herdr-app/layouts/main.json)'
+ls herdr-app/mods/spaces herdr-app/mods/agents
+```
+
+Not Herdr's changes: a clone's own name where the shipped file has `spaces` or `agents`, the `cloned_from` block, and in the layout the 3 / 2 weights.
+The `ls` shows a file a release added to a shipped mod: today each holds `main.js` and `mod.json` beside the type files the app writes (`gpui-kit.d.ts`, `jsconfig.json`).
+Take the rest into the clone by hand, set its `cloned_from.version` to the version taken, then run the unit tests and `herdr-app check` from the Commands section.
+The comparison always starts at 0.1.16, so it lists changes already taken as well.
+
+A re-diff does not show one thing: `tellingTitle` in `mods/spaces-cards/model.js` is a hand copy of the title rule in the shipped `agents` mod (`clean` and the `telling` test in `mods/agents/main.js`), and no test ties the two.
+A change to that rule shows in the `agents` comparison only, so carry it to `model.js` as well.
 
 ## Behavior
 
@@ -292,6 +318,8 @@ Never:
 - Commit app-written state.
 
 ## Success criteria
+
+All 12 were checked off on 2026-11-24; the evidence for each is under Checkpoint D in [plan.md](plan.md), with the pointer and key checks still to be done by hand.
 
 1. `herdr-app do layout.switch '{"name":"cards"}'` shows the new sidebar, and `cmd-shift-l` cycles back to an unchanged shipped `main`.
 2. Both spaces open today show a 3-line card with a title that is not just the folder name.
@@ -592,6 +620,19 @@ Never:
 - 2026-11-24 (Checkpoint D ship fixes): A fresh `agent-skills:code-reviewer` then read the fixes and asked for changes: 2 required, 6 optional, nits.
   Required: the first form of the drag's end read `pressed_button` in the card's own move handler, where a build that did not report it would have undone every click, and a second click on the `+` during its ask opened a second dialog.
   Both are fixed as the entries above now say, and the optional findings were taken, except the wheel handler and drawing the refs before the list, answered above.
+- 2026-11-24 (Checkpoint D closing): The scratch checkouts were removed with `git worktree remove`, not through the shipped Remove worktree action the testing strategy names.
+  That action is a dialog, nothing here can drive the pointer, and the whole scratch repo was deleted in the same step.
+- 2026-11-24 (Checkpoint D closing): The app updated itself to 0.1.18 during this work, so assumption 1 holds for the clones and no longer for the shipped mods.
+  The re-diff under Keeping the clones current, run against 0.1.18, shows the shipped layout `main` unchanged and the changes below, none of them taken into the clones.
+  In `spaces`: a repo's name read from a hidden bare repo (`<project>/.bare`), a whole leading emoji kept as the avatar, and the repo and branch tail hidden when it matches the name without its emoji.
+  In `agents`: a title's leading emoji kept by `clean`, a kept sub-agent showing its own status, a helper's done no longer pulling a working parent out of Working, and the narrow rail's row rounded and lit when focused.
+  The `clean` change is the title rule `tellingTitle` in `model.js` copies by hand, so the cards and the shipped agents list now differ on a title that starts with an emoji.
+  The spec keeps the rail "as shipped"; it is as shipped in 0.1.16.
+  Taking these changes is new work with its own tests and review, left for a decision.
+- 2026-11-24 (Checkpoint D ship): The README keeps one line on the clones and links here, at the owner's request to keep it high level.
+  The re-diff steps first written into the README's Layout section are now under Keeping the clones current.
+- 2026-11-24 (Checkpoint D ship): Fresh code review, security audit and test passes read the closing change and found nothing critical or required.
+  Taken from them: the layout comparison writes no temp file, the re-diff also compares each `mod.json` and lists the shipped mod folders, and what is left open is listed under Open questions.
 
 ## Open questions
 
@@ -599,3 +640,9 @@ Never:
    Settled 2026-11-23 in plan task 3: it is inherited, see the decisions log.
 2. ~~**Unit test files inside mod folders.**~~
    Settled 2026-11-22 in plan task 2: they stay in the mod folders, see the decisions log.
+3. **Take Herdr's 0.1.18 changes into the clones.**
+   Open since 2026-11-24: the changes are listed in the decisions log (Checkpoint D closing), and the `clean` change leaves `tellingTitle` behind the shipped agents list on a title that starts with an emoji.
+4. **A test tying `tellingTitle` to the agents list's title rule.**
+   Open since 2026-11-24: a test in `spaces-cards` can read the `clean` rule out of `agents-context/main.js` as text and run one table of titles through both, so a re-diff that changes one and not the other fails.
+5. **Hand checks.**
+   Open since 2026-11-24: the pointer and key checks and the cold start check listed under Checkpoint D in [plan.md](plan.md) need a person at the window.

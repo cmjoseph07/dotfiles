@@ -1,7 +1,7 @@
 # Implementation plan: Herdr card sidebar
 
 Spec: [SPEC.md](SPEC.md), approved 2026-11-22.
-Status: approved 2026-11-22, Checkpoint A shipped 2026-11-23, Checkpoint B shipped 2026-11-23, Checkpoint C shipped 2026-11-24, its ship fixes committed 2026-11-24, Task 8 built 2026-11-24, Task 9 built 2026-11-24, Checkpoint D tested 2026-11-24, reviewed 2026-11-24, shipped 2026-11-24, its closing items next.
+Status: approved 2026-11-22, Checkpoint A shipped 2026-11-23, Checkpoint B shipped 2026-11-23, Checkpoint C shipped 2026-11-24, its ship fixes committed 2026-11-24, Task 8 built 2026-11-24, Task 9 built 2026-11-24, Checkpoint D tested 2026-11-24, reviewed 2026-11-24, shipped 2026-11-24, its closing items done and committed 2026-11-24; the plan is complete.
 Task list target: this file (the project keeps spec, plan and tasks together under `herdr-app/docs/card-sidebar/`, not in `tasks/`).
 
 ## Overview
@@ -265,11 +265,61 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
   - Checked by hand, added by the ship fixes: a drag still reorders and a click still selects, a drag let go on the header or a terminal loses its drop line at the next move, the `+` goes when another app comes to the front and is back at the first move over the card, a second click on the `+` opens no second dialog, and the pointer leaving the window straight off a card.
     Not shown live: a checkout list that cannot finish in 5s, a `run` changed in `programs.json` between two clicks, and anything on a remote machine.
 - [x] Commit: `feat(herdr-app): surface unopened worktrees and one-click creation`.
-- [ ] All 12 spec success criteria checked off with evidence; all 7 end to end states captured and inspected for clipping, alignment and theme-foreign colors.
-- [ ] Scratch repo, its checkouts, its spaces and temporary feed files removed; `herdr-app ls` and `git status` are clean of test leftovers.
-- [ ] README "Layout" section describes `herdr-app/` and how to re-diff the clones against a newer shipped version (`cloned_from` in each clone).
+- [x] All 12 spec success criteria checked off with evidence; all 7 end to end states captured and inspected for clipping, alignment and theme-foreign colors.
+  - Closing 2026-11-24: shots are in `/tmp/herdr-closing/` (not kept past a restart), each read at full size as a crop of the sidebar.
+    Where a criterion needs a pointer or a key press, the half a command can show is shown and the rest is in the hand checks below.
+  - Criterion 1: `layout.switch` to `cards` shows the cards (`00-baseline.png`) and to `main` the shipped rows (`01-main-sidebar.png`), by the command `cmd-shift-l` is bound to.
+    The shipped `layouts/main.json` differs from the clone's first commit only in what the clone changed: the two mod names, the 3 / 2 weights and `cloned_from`.
+  - Criterion 2: the two spaces open today each show three lines, titled "019 from checkpoint-3-review-2-handoff" and "Card sidebar checkpoint D closeout" (`10-after-cleanup.png`).
+  - Criterion 3: the 52 character `feat/card-sidebar-three-line-title-and-branch-layout` is drawn as `feat/card-sidebar-three-li…ranch-layout` at 268px and whole at 480px (`01-spaces-268.png`, `06-spaces-480.png`).
+    The full name on hover is a hand check; the tooltip's text is unit tested.
+  - Criterion 4: both worktree spaces are drawn indented under `herdr-e2e`, with the branch glyph (`01-spaces-268.png`).
+  - Criterion 5: with `test/checkpoint-d` on disk and closed, the repo card shows `+1`, and the Open worktree dialog, opened with the chip's own arguments, lists 4 checkouts with that one alone not marked open (`04-picker-full.png`).
+    Choosing it is a hand check; Task 8 opened a checkout as a space and the chip went.
+  - Criterion 6: before the cleanup, `git worktree list` in the scratch repo still listed `feat-hover-plus` and `test-checkpoint-d` under `~/Development/worktrees/herdr-e2e/`, both made through the New worktree dialog with the `+` button's arguments, and the `feat-hover-plus` space ran a `claude-code` terminal.
+    The click itself is a hand check.
+  - Criterion 7: one frame shows `ctx 18%` in this session's status line, 18% on its card and 18% on its agents row (`04-picker-full.png`), and the feed file held the same number.
+    Over the run the readout followed the status line from 13 to 18, and a feed written with 17 was on the card in a shot taken under 3s later.
+    The scratch agent showed 4% in its status line, its feed, its card and its row.
+  - Criterion 8: one input piped through `~/.claude/statusline.sh` with `HC_TERMINAL_ID` unset, set to a plain id and set to `../x` printed byte-identical output (compared with `xxd`), and only the plain id wrote a feed file, since removed.
+    No copy of the script from before the write step is kept, so the runs that skip the step stand for "before".
+  - Criterion 9: `space.select --index N`, the command `ctrl-N` is bound to, selected the Nth space of `herdr-app ls` for N from 1 to 6, and that order is the order drawn, with the space outside a repo at 6 (`09-index6.png`).
+    A real key press is a hand check.
+  - Criterion 10: unit tests 164 and 20 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
+    The check's warning about timers a reload leaves behind is printed for the shipped `spaces` and `agents` mods as well.
+  - Criterion 11: the seven states below show no clipped text, no misaligned row and no color from outside the theme, other than the two band colors the spec names.
+    State 1, a repo space with two nested worktree spaces, and state 2, the 52 character branch under a title of two lines: `01-spaces-268.png`.
+    State 3: blocked, working and done from a real Claude Code agent in the scratch repo, answered and left to finish (`03-blocked-spaces.png`, `03-working-spaces.png`, `03-done-spaces.png`, with the agents list beside each), and idle with "just now" once the agent was marked seen (`03-idle-spaces.png`).
+    The window was not in front, so looking at the space did not mark it; the terminal's `herdr.seen` label was set to its turn, as the app does.
+    State 4: the `+1` chip and its picker (`04-picker-full.png`).
+    State 5: 15% dim, 75% orange and 95% red on cards and rows, the last two from temporary feed files (`05-07-spaces.png`, `05-agents-bands.png`).
+    State 6: 268px, 480px and the narrow rail (`01-spaces-268.png`, `06-spaces-480.png`, `06-agents-480.png`, `06-rail.png`).
+    State 7: a space in `~`, drawn last with two lines (`05-07-spaces.png`).
+  - Criterion 12: before this closing commit, `git log origin/main..main` lists six commits, `main` is 6 ahead and nothing is pushed: the five listed at the checkpoints and the Checkpoint C ship fixes.
+  - Hand checks still open, all for want of a pointer or a keyboard here.
+    From Checkpoint C: the card's hover tooltip and its three lines, a pointer drag to reorder, and a real `ctrl-N` press.
+    From Checkpoint D: the chip's click and choosing a checkout in its dialog, the `+` showing on hover and going on leave, the `+` click with a typed branch, that neither click selects or drags the card, and the `+` tooltip inside the card's tooltip area.
+    From the Checkpoint D ship fixes: a drag still reorders and a click still selects, a drag let go on the header or a terminal loses its drop line at the next move, the `+` goes when another app comes to the front and is back at the first move over the card, a second click on the `+` opens no second dialog, and the pointer leaving the window straight off a card.
+    Also open: whether a space is wrongly sent last on a cold start of the app, which needs one restart to see.
+  - Found while closing: the app is now 0.1.18 and its `spaces` and `agents` mods have changed since the clones were made from 0.1.16; see the spec's decisions log.
+    Nothing was taken into the clones here.
+- [x] Scratch repo, its checkouts, its spaces and temporary feed files removed; `herdr-app ls` and `git status` are clean of test leftovers.
+  - Closing 2026-11-24: the four scratch spaces (the repo's, its two worktree spaces and the one in `~`) were closed, which ended the scratch agent.
+    The three checkouts were removed with `git worktree remove`, then `~/Development/worktrees/herdr-e2e`, the scratch repo and the empty `~/Development/scratch` the checks had made.
+    The spec asks for the shipped Remove worktree action; that takes a pointer, so git was used.
+    Gone as well: the scratch agent's feed file, the two temporary band feeds (the real ones were put back), the throwaway mod that opened the picker, and the feed file of the criterion 8 run.
+  - Proof: `herdr-app ls` lists only the two real spaces with terminals `t1` and `t4`, `hc ls` only those two terminals, `git worktree list` in `~/.config` only the repo itself, `git status` only the `nvim/` deletions that were there before this work, `~/.cache/herdr-context/` only `t1.json` and `t4.json`, and `herdr-app status` no overlay and no error (`10-after-cleanup.png`).
+    `recent` in `herdr-app ls` keeps the last closed space; a space opened and closed in `~/.config` put that folder there in place of the scratch repo's.
+  - Left: `~/Development/worktrees/`, empty, because `settings.json` names it, and the scratch agents' transcripts under `~/.claude/projects/` (two folders with `herdr-e2e` in their names).
+- [x] README "Layout" section describes `herdr-app/` and how to re-diff the clones against a newer shipped version (`cloned_from` in each clone).
   The note names what a re-diff does not show: `tellingTitle` in `spaces-cards/model.js` is a hand copy of the title rule in the shipped `agents` mod, with no test tying the two.
-- [ ] Spec status set to done; this plan fully checked.
+  - Closing 2026-11-24: written, and its commands were run in fish against the shipped 0.1.18 files.
+    They compare the clones' first commit with the shipped files, so what comes out is Herdr's changes and not this work's.
+  - Ship 2026-11-24: the README was cut to one line that links to the spec, at the owner's request to keep it high level.
+    The re-diff steps and the `tellingTitle` note are in the spec under Keeping the clones current.
+    Fresh code review, security audit and test passes found nothing critical or required; unit tests 164 and 20 passing twice, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
+    What they asked for is in the spec's decisions log (Checkpoint D ship).
+- [x] Spec status set to done; this plan fully checked.
 
 ## Parallelization
 
@@ -287,7 +337,7 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
 | No 2-line clamp builder in this gpui-kit build | Low | Check `gpui-kit.d.ts` first; else fixed 2-line height with hidden overflow; no ellipsis could be placed, see the spec's decisions log |
 | Reordering fights the user's drag or loops on `space.move` | Med | Pure, stable ordering with a "no moves when already ordered" test; reuse the shipped move path unchanged |
 | Extra git call per repo slows refresh | Low | Reuse the shipped cache and watch; the lookup cap went from 6 to 5 places and the extra call is one per place, see the spec's decisions log |
-| Shipped mods change in a later Herdr release; clones do not | Low | `cloned_from` records the version; README notes how to re-diff |
+| Shipped mods change in a later Herdr release; clones do not | Low | `cloned_from` records the version; the spec notes how to re-diff, linked from the README |
 | Test files in a mod folder trigger reloads | Low | Settled in Task 2; fallback location specified |
 | End to end checks leave spaces, checkouts or agents behind | Med | Scratch repo only; cleanup is a checkpoint D item with `herdr-app ls` and `git worktree list` as proof |
 
@@ -295,3 +345,4 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
 
 None that block the build.
 The spec's test-location question was settled in Task 2 and its `HC_TERMINAL_ID` question in Task 3.
+Left open after the plan: the spec's open questions 3 to 5 (Herdr's 0.1.18 changes, a test for the title rule, the hand checks).
