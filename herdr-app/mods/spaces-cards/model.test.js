@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { afterLook, age, agentPrograms, avatarLetter, base, cardHead, cardState, cardTitle, cardTooltip, checkout, dirtyAfter, elapsed, gitInfo, highestContext, plannedMoves, readableBranch, standing, tellingTitle, visualOrder } from "./model.js";
+import { afterLook, age, agentPrograms, avatarLetter, base, cardHead, cardState, cardTitle, cardTooltip, checkout, checkoutsAfter, dirtyAfter, elapsed, gitInfo, highestContext, plannedMoves, readableBranch, standing, tellingTitle, unopened, visualOrder, worktreeAgent } from "./model.js";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -523,10 +523,10 @@ test("checkout is undefined when git failed for any other reason: asked again, n
   assert.equal(checkout(failed("fatal: this operation must be run in a work tree\n"), no), undefined);
 });
 
-const refs = (extra = {}) => ({ machine: null, top: "/code/lanternhall", repo: "/code/lanternhall/.git", branch: ran("refs/heads/feat/cards\n"), counts: ran("2\t3\n"), dirty: false, ...extra });
+const refs = (extra = {}) => ({ machine: null, top: "/code/lanternhall", repo: "/code/lanternhall/.git", branch: ran("refs/heads/feat/cards\n"), counts: ran("2\t3\n"), list: ran("worktree /code/lanternhall\nHEAD 1aad112\nbranch refs/heads/feat/cards\n\n"), dirty: false, ...extra });
 
 test("gitInfo: the repo's name, the branch and how far it is from its upstream", () => {
-  assert.deepEqual(gitInfo(refs()), { name: "lanternhall", branch: "feat/cards", ahead: 2, behind: 3, dirty: false, repo: JSON.stringify([null, "/code/lanternhall/.git"]), linked: false });
+  assert.deepEqual(gitInfo(refs()), { name: "lanternhall", branch: "feat/cards", ahead: 2, behind: 3, dirty: false, repo: JSON.stringify([null, "/code/lanternhall/.git"]), linked: false, top: "/code/lanternhall", checkouts: ["/code/lanternhall"] });
 });
 
 test("gitInfo names a bare repo after its folder, without the .git", () => {
@@ -563,6 +563,132 @@ test("gitInfo draws the repo's name and the branch as one plain line each", () =
 
 test("gitInfo cuts a branch too long to draw after its refs/heads/ is gone", () => {
   assert.equal(gitInfo(refs({ branch: ran(`refs/heads/${"b".repeat(300)}\n`) })).branch, "b".repeat(200));
+});
+
+test("gitInfo keeps the place's own checkout and every checkout of its repo", () => {
+  const g = gitInfo(refs({ top: "/code/worktrees/cards", list: ran("worktree /code/lanternhall\nHEAD 1aad112\nbranch refs/heads/main\n\nworktree /code/worktrees/cards\nHEAD 1aad112\nbranch refs/heads/feat/cards\n\n") }));
+  assert.equal(g.top, "/code/worktrees/cards");
+  assert.deepEqual(g.checkouts, ["/code/lanternhall", "/code/worktrees/cards"]);
+});
+
+test("gitInfo: a checkout list that failed, or could not finish, leaves the rest as found", () => {
+  for (const list of [failed("fatal: not a git repository\n"), null, undefined]) {
+    assert.deepEqual(gitInfo(refs({ list })), { ...gitInfo(refs()), checkouts: null });
+  }
+});
+
+test("gitInfo: a checkout list that could not finish leaves the checkouts the place knew", () => {
+  const knew = ["/code/lanternhall", "/code/worktrees/cards"];
+  const known = { ...gitInfo(refs()), checkouts: knew };
+  for (const list of [failed("fatal: not a git repository\n"), null]) {
+    assert.deepEqual(gitInfo(refs({ list, known })), { ...gitInfo(refs()), checkouts: knew });
+  }
+  assert.deepEqual(gitInfo(refs({ known })).checkouts, ["/code/lanternhall"]);
+});
+
+// The same folder can come to be in another repo: one made again, or one made inside it.
+test("gitInfo: the checkouts a place knew of another repo are not this repo's", () => {
+  const knew = ["/code/lanternhall", "/code/worktrees/cards"];
+  const elsewhere = { ...gitInfo(refs({ repo: "/code/lanternhall/inner/.git" })), checkouts: knew };
+  const away = { ...gitInfo(refs({ machine: "vps" })), checkouts: knew };
+  for (const known of [elsewhere, away, null, false, undefined]) assert.equal(gitInfo(refs({ list: null, known })).checkouts, null);
+});
+
+// `git worktree list --porcelain`: one block per checkout, a blank line after each.
+const block = (path, ...lines) => `worktree ${path}\n${lines.join("\n")}\n\n`;
+const head = "HEAD 1aad1128274f52fa65513065c814991684bfe943";
+// The checkouts of a repo whose own folder is `repo`, from a list that ran, none known before.
+const listed = (list, repo = "/code/lanternhall/.git") => checkoutsAfter(null, ran(list), repo);
+
+test("checkouts: the repo's own checkout and its worktrees, in git's order", () => {
+  const list = block("/code/lanternhall", head, "branch refs/heads/main") + block("/code/worktrees/lanternhall/feat-cards", head, "branch refs/heads/feat/cards");
+  assert.deepEqual(listed(list), ["/code/lanternhall", "/code/worktrees/lanternhall/feat-cards"]);
+});
+
+test("checkouts keeps the repo's own checkout first, whatever its worktrees are named", () => {
+  const list = block("/code/lanternhall", head, "branch refs/heads/main") + block("/code/a/feat-cards", head, "branch refs/heads/feat/cards");
+  assert.deepEqual(listed(list), ["/code/lanternhall", "/code/a/feat-cards"]);
+});
+
+test("checkouts reads a list that ends without its blank line", () => {
+  const two = block("/code/lanternhall", head, "branch refs/heads/main") + block("/code/worktrees/cards", head, "branch refs/heads/feat/cards");
+  for (const list of [two.trimEnd(), two.slice(0, -1)]) assert.deepEqual(listed(list), ["/code/lanternhall", "/code/worktrees/cards"]);
+});
+
+test("checkouts keeps a folder's spaces", () => {
+  assert.deepEqual(listed(block("/code/my project", head, "branch refs/heads/main")), ["/code/my project"]);
+});
+
+test("checkouts: a bare repo is no checkout, its worktrees are", () => {
+  const list = block("/code/lanternhall.git", "bare") + block("/code/worktrees/cards", head, "branch refs/heads/feat/cards");
+  assert.deepEqual(listed(list, "/code/lanternhall.git"), ["/code/worktrees/cards"]);
+  assert.deepEqual(listed(list, "/elsewhere/.git"), ["/code/worktrees/cards"]);
+});
+
+// git lists a repo's own checkout by cutting /.git off the repo's folder. A repo kept
+// elsewhere (a submodule's, one made with --separate-git-dir) is listed as that folder.
+test("checkouts: a submodule's repo folder is no checkout, its worktrees are", () => {
+  const repo = "/code/super/.git/modules/libs/sub";
+  assert.deepEqual(listed(block(repo, head, "branch refs/heads/main"), repo), []);
+  assert.deepEqual(listed(block(repo, head, "branch refs/heads/main") + block("/code/worktrees/sub-fix", head, "branch refs/heads/fix"), repo), ["/code/worktrees/sub-fix"]);
+});
+
+test("checkouts: a repo folder kept apart from its checkout is no checkout", () => {
+  assert.deepEqual(listed(block("/code/apart.git", head, "branch refs/heads/main"), "/code/apart.git"), []);
+});
+
+test("checkouts counts a worktree on a detached head", () => {
+  const list = block("/code/lanternhall", head, "branch refs/heads/main") + block("/code/worktrees/bisect", head, "detached");
+  assert.deepEqual(listed(list), ["/code/lanternhall", "/code/worktrees/bisect"]);
+});
+
+test("checkouts counts a locked worktree, with or without a reason", () => {
+  const list = block("/code/lanternhall", head, "branch refs/heads/main") + block("/mnt/usb/a", head, "branch refs/heads/a", "locked") + block("/mnt/usb/b", head, "branch refs/heads/b", "locked on a removable drive");
+  assert.deepEqual(listed(list), ["/code/lanternhall", "/mnt/usb/a", "/mnt/usb/b"]);
+});
+
+test("checkouts leaves out a worktree git would prune: its folder is gone", () => {
+  const list = block("/code/lanternhall", head, "branch refs/heads/main") + block("/code/worktrees/gone", head, "branch refs/heads/gone", "prunable gitdir file points to non-existent location");
+  assert.deepEqual(listed(list), ["/code/lanternhall"]);
+});
+
+test("checkouts leaves out a worktree git would prune, reason or not", () => {
+  assert.deepEqual(listed(block("/code/lanternhall", head, "branch refs/heads/main") + block("/code/worktrees/gone", head, "detached", "prunable")), ["/code/lanternhall"]);
+});
+
+test("checkouts: a folder named like a mark is still a checkout", () => {
+  const list = block("/code/bare", head, "branch refs/heads/main") + block("/code/prunable", head, "detached");
+  assert.deepEqual(listed(list), ["/code/bare", "/code/prunable"]);
+});
+
+test("checkouts: a branch or a lock's reason that mentions a mark is still a checkout", () => {
+  const list = block("/code/lanternhall", head, "branch refs/heads/bare") + block("/code/worktrees/a", head, "branch refs/heads/prunable") + block("/code/worktrees/b", head, "branch refs/heads/b", "locked bare prunable drive");
+  assert.deepEqual(listed(list), ["/code/lanternhall", "/code/worktrees/a", "/code/worktrees/b"]);
+});
+
+test("checkouts of a list with nothing in it is empty", () => {
+  assert.deepEqual(listed(""), []);
+});
+
+// Only a list that ran can say: any other leaves the checkouts as the place knew them.
+test("checkouts stay unknown when the list failed, or could not finish: unknown, not none", () => {
+  const repo = "/code/lanternhall/.git";
+  assert.equal(checkoutsAfter(null, failed("fatal: not a git repository\n"), repo), null);
+  assert.equal(checkoutsAfter(null, ran(block("/code/lanternhall", head), { code: 1 }), repo), null);
+  assert.equal(checkoutsAfter(null, null, repo), null);
+});
+
+test("checkouts stay as they were known when the list failed, or could not finish", () => {
+  const repo = "/code/lanternhall/.git", knew = ["/code/lanternhall", "/code/worktrees/cards"];
+  assert.deepEqual(checkoutsAfter(knew, failed("fatal: not a git repository\n"), repo), knew);
+  assert.deepEqual(checkoutsAfter(knew, ran(block("/code/lanternhall", head), { code: 1 }), repo), knew);
+  assert.deepEqual(checkoutsAfter(knew, null, repo), knew);
+});
+
+test("checkouts are the list's once it ran, whatever was known", () => {
+  const repo = "/code/lanternhall/.git", knew = ["/code/lanternhall", "/code/worktrees/cards"];
+  assert.deepEqual(checkoutsAfter(knew, ran(block("/code/lanternhall", head, "branch refs/heads/main")), repo), ["/code/lanternhall"]);
+  assert.deepEqual(checkoutsAfter(knew, ran(""), repo), []);
 });
 
 test("dirtyAfter: uncommitted changes are any line of a status that ran", () => {
@@ -662,6 +788,148 @@ test("plannedMoves, once run, leave nothing to move", () => {
   const after = moved(ids(rows), plannedMoves(ids(rows), target));
   assert.deepEqual(after, target);
   assert.deepEqual(plannedMoves(after, target), []);
+});
+
+// A space in a checkout (`top`) of a repo with these `checkouts`, as its place's look found them.
+const opened = (id, top, checkouts, { repo = "/a/.git", machine = null, nested = false } = {}) => ({ w: { id, machine }, g: { repo: JSON.stringify([machine, repo]), linked: top !== repo.slice(0, -5), top, checkouts }, nested });
+const more = (rows) => unopened(rows).map((r) => r.more);
+
+test("unopened: a repo's card says how many of its checkouts no space is in", () => {
+  assert.deepEqual(more([opened("main", "/a", ["/a", "/wt/x", "/wt/y"])]), [2]);
+});
+
+test("unopened: a checkout opened as a space is not counted, by any space of the repo", () => {
+  const all = ["/a", "/wt/x", "/wt/y"];
+  assert.deepEqual(more([opened("main", "/a", all), opened("x", "/wt/x", all, { nested: true })]), [1, 0]);
+  assert.deepEqual(more([opened("main", "/a", all), opened("x", "/wt/x", all, { nested: true }), opened("y", "/wt/y", all, { nested: true })]), [0, 0, 0]);
+});
+
+test("unopened: only the first card of a repo says it", () => {
+  const all = ["/a", "/wt/x"];
+  assert.deepEqual(more([opened("main", "/a", all), opened("again", "/a", all)]), [1, 0]);
+});
+
+test("unopened: worktrees whose repo's own checkout is closed count it, on the first of them", () => {
+  const all = ["/a", "/wt/x", "/wt/y"];
+  assert.deepEqual(more([opened("x", "/wt/x", all), opened("y", "/wt/y", all)]), [1, 0]);
+});
+
+test("unopened: a space in a checkout the list does not name yet opens none of the listed", () => {
+  const before = ["/a", "/wt/x"];
+  assert.deepEqual(more([opened("main", "/a", before), opened("new", "/wt/new", before, { nested: true })]), [1, 0]);
+});
+
+test("unopened counts from one list, the first the repo's spaces know", () => {
+  assert.deepEqual(more([opened("main", "/a", ["/a", "/wt/x"]), opened("x", "/wt/x", ["/a", "/wt/x", "/wt/y"], { nested: true })]), [0, 0]);
+  assert.deepEqual(more([opened("x", "/wt/x", null), opened("y", "/wt/y", ["/a", "/wt/x", "/wt/y"])]), [1, 0]);
+});
+
+// The list and a place's top are two runs of git: this ties the form of one to the other's.
+test("unopened: a space in a submodule, as git answers for it, has nothing more to open", () => {
+  const repo = "/code/super/.git/modules/libs/sub";
+  const g = gitInfo(refs({ top: "/code/super/libs/sub", repo, list: ran(block(repo, head, "branch refs/heads/main")) }));
+  assert.deepEqual(more([{ w: { id: "sub", machine: null }, g, nested: false }]), [0]);
+});
+
+// Neither is text a card draws: the list and a place's top are matched as git wrote them.
+test("unopened: a folder is matched to the letter, however long or oddly spaced its name", () => {
+  const odd = `/Code/My  Project/${"d".repeat(300)} `;
+  const list = ran(block("/code/lanternhall", head, "branch refs/heads/main") + block(odd, head, "branch refs/heads/feat/cards"));
+  const g = gitInfo(refs({ top: odd, list }));
+  assert.equal(g.top, odd);
+  assert.deepEqual(g.checkouts, ["/code/lanternhall", odd]);
+  assert.deepEqual(more([{ w: { id: "odd", machine: null }, g, nested: false }]), [1]);
+});
+
+test("unopened: a checkout inside another is its own, open only when a space is in it", () => {
+  const all = ["/a", "/a/.claude/worktrees/x"];
+  assert.deepEqual(more([opened("main", "/a", all)]), [1]);
+  assert.deepEqual(more([opened("x", "/a/.claude/worktrees/x", all)]), [1]);
+});
+
+test("unopened: a repo says it once, with another repo's card between its own", () => {
+  const all = ["/a", "/wt/x"];
+  const rows = [opened("a", "/a", all), opened("b", "/b", ["/b", "/wt/b"], { repo: "/b/.git" }), opened("again", "/a", all)];
+  assert.deepEqual(more(rows), [1, 1, 0]);
+});
+
+// A list with nothing in it is an answer (a submodule's repo with no worktree), not a gap.
+test("unopened: a list known to be empty is the repo's list, not passed over for a later one", () => {
+  const repo = "/code/super/.git/modules/libs/sub";
+  const rows = [opened("sub", "/code/super/libs/sub", [], { repo }), opened("fix", "/wt/fix", ["/wt/fix", "/wt/y"], { repo })];
+  assert.deepEqual(more(rows), [0, 0]);
+});
+
+test("unopened: a space on another machine opens nothing here", () => {
+  const all = ["/a", "/wt/x"];
+  assert.deepEqual(more([opened("main", "/a", all), opened("vps-x", "/wt/x", all, { machine: "vps" })]), [1, 1]);
+});
+
+test("unopened: each repo counts its own checkouts", () => {
+  const rows = [opened("a", "/a", ["/a", "/wt/x"]), opened("b", "/b", ["/b"], { repo: "/b/.git" })];
+  assert.deepEqual(more(rows), [1, 0]);
+});
+
+test("unopened: a repo whose checkouts are unknown, and a space outside any repo, say nothing", () => {
+  assert.deepEqual(more([opened("main", "/a", null), outsideRepo("home"), unanswered("away")]), [0, 0, 0]);
+});
+
+test("unopened keeps every row as it was, in order", () => {
+  const rows = [outsideRepo("home"), opened("main", "/a", ["/a", "/wt/x"])];
+  assert.deepEqual(unopened(rows), [{ ...rows[0], more: 0 }, { ...rows[1], more: 1 }]);
+});
+
+const known = (key, extra = {}) => ({ key, name: key, run: [key], installed: true, ...extra });
+
+test("worktreeAgent is Claude Code as the app's table starts it", () => {
+  const claudeCode = known("claude", { name: "Claude Code" });
+  assert.deepEqual(worktreeAgent([known("codex"), claudeCode, known("agent")]), { name: "Claude Code", run: ["claude"] });
+});
+
+test("worktreeAgent takes a run someone set for Claude Code as given", () => {
+  const mine = known("claude", { run: ["my-claude", "--verbose"] });
+  assert.deepEqual(worktreeAgent([mine]).run, ["my-claude", "--verbose"]);
+});
+
+test("worktreeAgent goes by the table's key, not by a name or a program that only mentions Claude", () => {
+  assert.equal(worktreeAgent([known("claude-alt", { name: "Claude Code", run: ["claude"] })]), null);
+});
+
+test("worktreeAgent does not ask whether it is installed: that differs per machine", () => {
+  assert.deepEqual(worktreeAgent([known("claude", { installed: false })]), { name: "claude", run: ["claude"] });
+});
+
+test("worktreeAgent's name is one line of plain text, its run is as the table gives it", () => {
+  const odd = known("claude", { name: "Claude\nCode\u202e " + "x".repeat(300), run: ["my claude", "--a\nb"] });
+  const agent = worktreeAgent([odd]);
+  assert.equal(agent.name, "Claude Code " + "x".repeat(188));
+  assert.deepEqual(agent.run, ["my claude", "--a\nb"]);
+});
+
+test("worktreeAgent is nobody while the agents are not known, or Claude Code is not among them", () => {
+  assert.equal(worktreeAgent(null), null);
+  assert.equal(worktreeAgent([]), null);
+  assert.equal(worktreeAgent([known("codex")]), null);
+});
+
+test("worktreeAgent is nobody when Claude Code has nothing to run", () => {
+  assert.equal(worktreeAgent([known("claude", { run: [] })]), null);
+  assert.equal(worktreeAgent([known("claude", { run: undefined })]), null);
+  assert.equal(worktreeAgent([known("claude", { run: [""] })]), null);
+  assert.equal(worktreeAgent([known("claude", { run: [" "] })]), null);
+});
+
+test("worktreeAgent goes by Claude Code's own name when the table gives it none", () => {
+  assert.equal(worktreeAgent([known("claude", { name: undefined })]).name, "Claude Code");
+  assert.equal(worktreeAgent([known("claude", { name: " \n" })]).name, "Claude Code");
+});
+
+// The run is handed on as a command and its arguments: nothing else is one.
+test("worktreeAgent is nobody when Claude Code's run is not a list of words", () => {
+  assert.equal(worktreeAgent([known("claude", { run: "claude" })]), null);
+  assert.equal(worktreeAgent([known("claude", { run: ["claude", 3] })]), null);
+  assert.equal(worktreeAgent([known("claude", { run: ["claude", null] })]), null);
+  assert.equal(worktreeAgent([known("claude", { run: { 0: "claude", length: 1 } })]), null);
 });
 
 test("context.js is byte for byte the copy in agents-context", () => {

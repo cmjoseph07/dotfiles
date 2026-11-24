@@ -2,12 +2,14 @@
 // colored avatar and its most urgent state, what the space is about, then its branch,
 // ahead/behind and uncommitted changes beside its agents and their fullest context.
 // Worktrees sit under their checkout and spaces outside any repo come last, grouped by
-// machine when more than one is known. Click to switch, right-click for its menu, drag to reorder.
+// machine when more than one is known. A repo with checkouts no space is in says how many
+// (+N): click that to open one. The card under the pointer offers a new worktree with
+// Claude Code in it (+). Click to switch, right-click for its menu, drag to reorder.
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { spaces, machines, panes, agents, terminals, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, home, readTextFile, knownAgents, checking } from "herdr";
-import { afterLook, agentPrograms, avatarLetter, cardHead, cardState, cardTitle, cardTooltip, checkout, dirtyAfter, gitInfo, highestContext, plannedMoves, standing, visualOrder } from "./model.js";
+import { afterLook, agentPrograms, avatarLetter, cardHead, cardState, cardTitle, cardTooltip, checkout, dirtyAfter, gitInfo, highestContext, plannedMoves, standing, unopened, visualOrder, worktreeAgent } from "./model.js";
 import { Looks } from "./looks.js";
 import { bandColor, describe, feedPath, parseFeed } from "./context.js";
 
@@ -47,6 +49,14 @@ const AT_ONCE = 5;
 // or nesting waits for it. With the refs that is 12 runs at most, under a core's 16.
 const DIRTY_AT_ONCE = 2;
 const DIRTY_LIMIT = 10000;
+// A repo's checkout list is read with its refs, for no longer than LIST_LIMIT: it looks for
+// each worktree's folder, and one on a drive that does not answer would hold the place's
+// repo, branch and nesting back with it. The `+N` it feeds can wait for the next look.
+const LIST_LIMIT = 5000;
+// How long a card's + waits to hear how its agent is started before it goes by what it
+// learned: the answer can come from a login shell, and a dialog that opens seconds after
+// its click opens over something else.
+const ASK_LIMIT = 1500;
 
 // Git as this mod asks it: never in a bare repo it was not pointed at. A folder laid out as
 // one can sit inside any clone, and reading its status would run the programs its own
@@ -83,8 +93,9 @@ function icon(p, size, color) {
 export default class Spaces extends View {
   init(_props, cx) {
     // where() -> what the place knows of its git (model.js `afterLook`): its repo's info
-    // { name, branch (null: detached), ahead, behind, dirty, repo, linked }, null: git says
-    // no repo, false: git never answered. Absent: not looked at yet.
+    // { name, branch (null: detached), ahead, behind, dirty, repo, linked, top, checkouts
+    // (null: unknown) }, null: git says no repo, false: git never answered. Absent: not
+    // looked at yet.
     this.git = {};
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s whose last look could not ask git (a machine away): asked again
@@ -99,7 +110,10 @@ export default class Spaces extends View {
     this.shown = new Set(spaces().map((s) => s.id));
     this.born = {};
     this.pressed = null;
+    this.held = false; // a move has reported the left button held since the press
     this.over = null;
+    this.hovered = null; // the space whose card the pointer is on
+    this.front = true; // the window was in front at the last look (see `checkNew`)
     this.scroll = ScrollHandle.new(); // the list's position: the active space is brought into view through it
     this.activeAt = -1; // the active space's place among the list's children (headers and rows), -1 when not drawn
     this.machines = [];
@@ -119,8 +133,10 @@ export default class Spaces extends View {
     this.context = new Map();
     cx.timer.every(5000, (cx) => this.readContext(cx));
     this.readContext(cx);
-    this.menuNames = null; // the names the + menu gives its tabs, once learned (see `learnMenuNames`)
-    this.namesAsked = 0;
+    this.menuNames = null; // the names the + menu gives its tabs, once learned (see `learnAgents`)
+    this.starts = null; // the agent a card's + starts in a new worktree, learned with them
+    this.agentsAsked = 0;
+    this.asking = false; // a + was clicked and its dialog is not open yet
   }
 
   // The times the cards show now, as one string. The rail shows none.
@@ -155,25 +171,43 @@ export default class Spaces extends View {
     });
   }
 
-  // The names the + menu gives the tabs it makes: it names a new agent's tab after its
-  // program, so a tab named so was typed by nobody (model.js `cardTitle`). Asked until
-  // answered, as often as FALLBACK: the answer comes from a login shell.
-  learnMenuNames(now, cx) {
-    this.namesAsked = now;
+  // What the app's table of agents says, from one answer. The names the + menu gives the
+  // tabs it makes: it names a new agent's tab after its program, so a tab named so was
+  // typed by nobody (model.js `cardTitle`). And how Claude Code is started, for a card's +.
+  // Asked until answered, and while it names nobody for the + to start, as often as
+  // FALLBACK: the answer comes from a login shell.
+  learnAgents(now, cx) {
+    this.agentsAsked = now;
     if (checking()) return;
     cx.spawn(async (cx) => {
       try {
-        this.menuNames = new Set((await knownAgents()).map((a) => a.name));
+        await this.askAgents();
         cx.notify();
       } catch {}
     });
+  }
+
+  // Asks the table and keeps what it says. Gives the agent a card's + starts.
+  async askAgents() {
+    const known = await knownAgents();
+    this.menuNames = new Set(known.map((a) => a.name));
+    this.starts = worktreeAgent(known);
+    return this.starts;
   }
 
   checkNew(cx) {
     const now = Date.now();
     const sp = spaces();
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
-    if (!this.menuNames && now - this.namesAsked > FALLBACK) this.learnMenuNames(now, cx);
+    if ((!this.menuNames || !this.starts) && now - this.agentsAsked > FALLBACK) this.learnAgents(now, cx);
+    // A window left with the pointer on a card hears of no exit: the card would offer its +
+    // for as long as the window is behind another.
+    const front = Boolean(window()?.active);
+    if (this.front && !front && this.hovered !== null) {
+      this.hovered = null;
+      cx.notify();
+    }
+    this.front = front;
     const due = this.due(now, sp, panes());
     if (due.size) this.refs.ask(due, cx);
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
@@ -289,8 +323,8 @@ export default class Spaces extends View {
     });
   }
 
-  // One place's git from its refs: its repo, branch, ahead/behind. Its dirty mark follows.
-  // Says whether the place now knows something else.
+  // One place's git from its refs: its repo, branch, ahead/behind and the repo's checkouts.
+  // Its dirty mark follows. Says whether the place now knows something else.
   async check(key, cx) {
     const [on, cwd] = JSON.parse(key);
     const before = JSON.stringify(this.git[key]);
@@ -309,8 +343,12 @@ export default class Spaces extends View {
           git(["symbolic-ref", "-q", "HEAD"], { cwd, on }),
           git(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], { cwd, on }),
         );
-        // The mark the place showed stays until its own read says otherwise.
-        found = gitInfo({ machine: on, ...tree, branch, counts, dirty: Boolean(this.git[key]?.dirty) });
+        // After those two, not beside them: a place holds two runs at most (see AT_ONCE).
+        // A list that cannot finish in time costs the place nothing else it found.
+        const list = await git(["worktree", "list", "--porcelain"], { cwd, on, timeout: LIST_LIMIT }).catch(() => null);
+        // The mark the place showed and the checkouts it knew stay until a read says otherwise.
+        const known = this.git[key];
+        found = gitInfo({ machine: on, ...tree, branch, counts, list, dirty: Boolean(known?.dirty), known });
       }
     } catch {
       // Couldn't ask (the machine is away, the folder is gone): nothing found, asked again.
@@ -378,11 +416,11 @@ export default class Spaces extends View {
     const sp = spaces(), ps = panes(), ag = agents();
     const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
-    const out = visualOrder(sp.map((w, i) => {
+    const out = unopened(visualOrder(sp.map((w, i) => {
       const key = where(w, ps), folder = place(w, ps);
       const known = standing({ folder, git: this.git[key] });
       return { w, i, g: this.git[key] || null, ...known, folder, agents: ag.filter((a) => a.space === w.id) };
-    }));
+    })));
     // An attempted write can lose a sync conflict: allow the echo to settle before retrying.
     const order = sp.map(w => w.id);
     const target = out.map(r => r.w.id);
@@ -512,7 +550,58 @@ export default class Spaces extends View {
       .when(Boolean(reading), (el) => el.child(div().flex_none().text_size(11).text_color(bandColor(reading.percent) ?? t.dim).child(`${reading.percent}%`)));
   }
 
-  card({ w, i, g, nested, folder, agents: mine }, t) {
+  // Line 1's `+N`: the repo's checkouts no space is in. A click opens the shipped dialog
+  // that lists them. Its press stops here, so it neither selects nor drags the card, and so
+  // does its release: the card would take one that ends a drag as a drop on it.
+  moreChip(w, more, t) {
+    return h_flex().id(`space-more-${w.id}`).flex_none().h(16).px(5).rounded(4).items_center()
+      .border_1().border_color(t.border).text_size(10.5).text_color(t.muted).cursor_pointer()
+      .hover((s) => s.bg(t.selected).text_color(t.foreground))
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        openOverlay({ mod: "worktree", kind: "dialog", width: 560, height: 480, props: { space: w.id, action: "open" } });
+      })
+      .child(`+${more}`);
+  }
+
+  // Line 1's `+`, on the card the pointer is on: a new worktree of the card's repo, with
+  // the agent in its first tab. The shipped dialog asks for the branch and makes both. Its
+  // press and release stop here, as the chip's do.
+  worktreeButton(w, agent, t) {
+    return h_flex().id(`space-worktree-${w.id}`).flex_none().size(16).rounded(4).items_center().justify_center()
+      .text_color(t.muted).cursor_pointer()
+      .hover((s) => s.bg(t.selected).text_color(t.foreground))
+      .tooltip(`New worktree with ${agent.name}`)
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        this.newWorktree(w, agent, cx);
+      })
+      .child(svg("mods/workspace-chrome/plus.svg").size(11));
+  }
+
+  // The +'s click. How the agent is started is asked again here, as the + menu asks each
+  // time it opens: programs.json may have changed it since it was learned. The app keeps
+  // its answer for a minute, so the dialog opens at once or a moment later. When the app
+  // cannot answer, or not within ASK_LIMIT, the agent is started as `learned`. One ask at
+  // a time: a second click while it runs opens no second dialog.
+  newWorktree(w, learned, cx) {
+    if (this.asking) return;
+    this.asking = true;
+    cx.spawn(async (cx) => {
+      try {
+        const agent = await Promise.race([this.askAgents().catch(() => learned), cx.sleep(ASK_LIMIT).then(() => learned)]);
+        // A space closed meanwhile has no repo to say: the dialog would go by the home folder.
+        if (agent && spaces().some((s) => s.id === w.id)) openOverlay({ mod: "worktree", kind: "dialog", width: 460, height: 280, props: { space: w.id, action: "new", argv: agent.run } });
+        cx.notify();
+      } finally {
+        this.asking = false;
+      }
+    });
+  }
+
+  card({ w, i, g, nested, folder, agents: mine, more }, t) {
     const on = w.active;
     const head = cardHead({ space: w, repo: g?.name ?? null, folder });
     const title = cardTitle({ space: w, agents: mine, branch: g?.branch ?? null, folder, menuNames: this.menuNames });
@@ -523,6 +612,10 @@ export default class Spaces extends View {
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
+    // Only a card with a + to offer draws differently under the pointer. Not while a card
+    // is dragged: every card it passes would offer one.
+    const has = Boolean(g && this.starts);
+    const offers = has && this.hovered === w.id && this.pressed === null;
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
@@ -543,9 +636,18 @@ export default class Spaces extends View {
       ))
       .on_mouse_down("left", () => {
         this.pressed = w.id;
+        this.held = false;
         this.over = w.id;
       })
       .on_mouse_move((_e, cx) => {
+        // The pointer is on this card, whether or not an entry was heard, or the last
+        // card's exit (the list scrolled or reordered under it, the window came back to
+        // the front, the sidebar was hidden).
+        if (this.hovered !== w.id) {
+          const was = this.hovered;
+          this.hovered = w.id;
+          if (has || was !== null) cx.notify();
+        }
         const source = spaces().find(s => s.id === this.pressed);
         const over = source && (source.machine ?? null) === (w.machine ?? null) ? w.id : null;
         if (this.pressed !== null && this.over !== over) {
@@ -565,13 +667,21 @@ export default class Spaces extends View {
         cx.notify();
       })
       .on_mouse_down("right", () => this.menu(w))
+      .on_hover((hovered, cx) => {
+        if (hovered) this.hovered = w.id;
+        else if (this.hovered === w.id) this.hovered = null;
+        if (has) cx.notify();
+      })
       .child(
         h_flex()
           .gap(8)
           .items_center()
           .when(nested, el => el.child(h_flex().size(AVATAR).flex_none().items_center().justify_center().child(svg("mods/workspace-chrome/branch.svg").size(13).text_color(t.dim))))
           .when(!nested, el => el.child(h_flex().size(AVATAR).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child(avatarLetter(head))))
-          .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.muted).child(head))
+          .child(h_flex().flex_1().min_w(0).gap(6).items_center()
+            .child(div().min_w(0).truncate().text_size(12).text_color(t.muted).child(head))
+            .when(more > 0, (el) => el.child(this.moreChip(w, more, t))))
+          .when(offers, (el) => el.child(this.worktreeButton(w, this.starts, t)))
           .when(Boolean(state), (el) => el.child(state)),
       )
       // A space with nothing to say beyond its folder's name says it once, on line 1.
@@ -620,6 +730,18 @@ export default class Spaces extends View {
       if (this.activeAt >= 0) this.scroll.scroll_to_item(this.activeAt);
     }
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
+      // A drag let go where neither a card nor the list hears the release (the header,
+      // another block, outside the window) is over at the next move with no button held.
+      // Only once a move has reported the button held: a build that reports none keeps
+      // every drag and click as they were.
+      .on_window_mouse_move((e, cx) => {
+        if (this.pressed === null) return;
+        if (e.pressed_button === "left") { this.held = true; return; }
+        if (!this.held) return;
+        this.pressed = null;
+        this.over = null;
+        cx.notify();
+      })
       .child(h_flex().h(31).pl(16).pr(10).items_center().justify_between().text_size(11.5).text_color(t.dim)
         .when(collapsed, el => el.pl(0).pr(0).justify_center())
         .when(!collapsed, el => el.child("Spaces"))

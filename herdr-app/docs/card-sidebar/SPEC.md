@@ -471,6 +471,127 @@ Never:
   The context reading can be set by any local process, by design of the feed.
   Whether a space is wrongly sent last when the app starts before its terminal reports a folder is not known: it needs a restart of the app to see, and no fix is made on a guess.
   The title cleaning in `model.js` is a hand copy of the rule in `agents-context/main.js` with no test tying the two, unlike `context.js`.
+- 2026-11-24 (Task 8): The `+N` chip is said once per repo, on the first card drawn for it, from that place's own checkout list.
+  With the repo's own checkout closed, the first of its worktree cards carries the chip and counts that checkout.
+  A checkout is open when a space's place is anywhere inside it: the place's `--show-toplevel` is one of the folders `git worktree list` names.
+  The shipped dialog marks "open" by the live folder's path alone, the deepest checkout it is under, which says the same for a place in the checkout itself.
+  The two differ for a place in another repo kept inside a checkout (a submodule, a nested clone): the dialog calls the outer checkout open, the chip counts it as not open.
+- 2026-11-24 (Task 8): The checkout list is one more read per place, run after the two ref reads and not beside them.
+  A place still holds two runs at most, so the cap stays at 5 places and 12 runs; the cost is one more round trip per place.
+  The list is read as plain `--porcelain`, line by line, as the shipped dialog reads it: `-z` needs git 2.36, and a machine with an older git would show no chip at all.
+  A folder with a line break in its name is therefore not listed under that name and counts as not open.
+- 2026-11-24 (Task 8): The chip has no tooltip of its own.
+  A tooltip inside the card's tooltip area could not be tried without a pointer.
+- 2026-11-24 (Task 9): The `+` is on every card whose place is in a repo, a worktree's card too, not only on the card of the repo's own checkout.
+  The shipped dialog takes the repo from the space's place, so both make the checkout in the same folder, and a repo whose own checkout is not open would otherwise have no `+` at all.
+  A branch that exists is checked out the same from either; a new one starts from the head of the card that was clicked, as the dialog's own text says ("a new one starts from here").
+- 2026-11-24 (Task 9): The `+` sits on line 1 between the repo name and the state slot, and takes room only while it shows.
+  The card's height and the state slot do not move; a repo name that fills its line gives way by one button while the pointer is on the card.
+  A slot kept free for it would shorten every repo name all the time.
+  No card offers a `+` while one is dragged.
+- 2026-11-24 (Task 9): The card under the pointer is tracked with `on_hover` and a redraw on entry and exit, as the shipped `agents` mod shows its pin.
+  This build has no way to style a child from its parent's hover.
+- 2026-11-24 (Task 9): Claude Code's `run` comes from the same `knownAgents()` answer the mod already asks for the + menu's names, so the click opens the dialog at once.
+  Which entry it is (`worktreeAgent`: the table's key `claude`, with something to run) is in `model.js` with unit tests, so the task touched `model.js` and its tests beyond `main.js`.
+  Until that answer lands, or with no such entry, no card offers a `+`: a `+` that made a worktree without an agent would not be what it says.
+  Whether Claude Code is installed is not asked: that differs per machine and the answer is this computer's.
+  Where it is missing the space still opens on the new checkout, and its shell says so.
+- 2026-11-24 (Task 9): The `+` has a tooltip ("New worktree with Claude Code"), unlike the chip: it is an icon with no text of its own.
+  A tooltip inside the card's tooltip area is what the shipped `spaces` rail does for a machine's logout mark; here it could not be tried without a pointer.
+- 2026-11-24 (Checkpoint D review): A fresh `agent-skills:code-reviewer` asked for changes: 1 required, 4 optional, nits.
+  All were fixed or answered in the entries below.
+- 2026-11-24 (Checkpoint D review): A repo's own folder is no checkout, whatever `git worktree list` calls it.
+  git lists a repo's own checkout by cutting `/.git` off the repo's folder.
+  A submodule's repo, and one made with `--separate-git-dir`, are kept elsewhere, so git lists that folder itself, and no space is ever in it.
+  A space in a submodule showed `+1` for good, and the dialog behind the chip offered the superproject's `.git/modules/...` folder as a checkout; reproduced in the live window with a scratch submodule, gone after the fix.
+  `checkouts` drops a listed path that is the place's `--git-common-dir`; a bare repo is still left out by git's own `bare` mark as well.
+  What stays: when such a repo's own checkout is closed and one of its worktrees is open, the closed checkout is not counted, because the list does not say where it is.
+- 2026-11-24 (Checkpoint D review): The count is taken from the first checkout list the repo's spaces know, not from the first card's own.
+  This replaces "from that place's own checkout list" in the Task 8 entry above: one place's list failing blanked the chip for the whole repo while another space of it held a good list.
+  The list stays one read per place and not one per repo.
+  A per-repo read would need its own cache and queue beside the per-place ones, to save one short run per further space of a repo.
+- 2026-11-24 (Checkpoint D review): A checkout list that cannot finish leaves the checkouts unknown and the place as found.
+  It used to throw away the repo, branch and ahead/behind already read, and the place was asked again as if git had never answered, which is what the Checkpoint C review removed for the dirty mark.
+  It keeps the 30s limit of the other ref reads: it scans no worktree.
+- 2026-11-24 (Checkpoint D review): `worktreeAgent` gives the agent's name through `plain` and its `run` as the table has it.
+  The `+`'s tooltip draws the name, and every text a card or its tooltip draws is one plain line, whoever chose it.
+- 2026-11-24 (Checkpoint D review): A card redraws on pointer entry and exit only when it has a `+` to offer.
+  Every redraw of a mod redraws the whole window, and a card outside any repo, or any card before `knownAgents()` answers, draws the same under the pointer.
+- 2026-11-24 (Checkpoint D review): Whether a card offers its `+` stays in `main.js`.
+  It is pointer state (the card under the pointer, no drag going on), like the drag's dimming and drop line beside it, none of which Node can reach; `model.js` holds what is decided from data.
+- 2026-11-24 (Checkpoint D review): A drag let go outside the list still leaves `pressed` set until the next click in the list, as in the shipped `spaces` mod.
+  Until then the drop line follows the pointer, as shipped, and no card offers a `+`.
+  A move event does not say whether a button is held, there is no release event for outside an element (`gpui-kit.d.ts`), and nothing here can drive a pointer, so no fix is made on a guess.
+- 2026-11-24 (Checkpoint D review): The unit tests gained the cases whose absence let changed code pass.
+  A space in a checkout the list does not name yet, two lists of one repo that differ, a first card whose list is unknown, a branch or a lock's reason that mentions `bare` or `prunable`, and a list that could not finish.
+  One case runs a submodule's answers through `gitInfo` into `unopened`, so the form of a listed path is tied to the form of a place's top.
+  The reviewer's changes that had passed (the count by subtraction, the lists merged, a mark matched anywhere in a line) now fail a test.
+- 2026-11-24 (Checkpoint D review): Tasks 8 and 9 stay ticked with their pointer checks open.
+  The chip's click, the `+` on hover and its click, that neither selects or drags the card, and the `+` tooltip inside the card's tooltip are listed at Checkpoint D as checked by hand; the reviewer could not drive a pointer either.
+  By reading: the stopped press leaves `pressed` unset, so the card's release neither selects nor moves.
+- 2026-11-24 (Checkpoint D ship fixes): Three fresh passes read the Task 8 and 9 diff: a code review, a security audit and a test coverage analysis.
+  None found anything critical.
+  The code review asked for changes (2 required, 3 optional, nits), the audit found 2 low and 3 informational points, and the coverage analysis found 4 medium and 4 low gaps.
+  All were fixed or answered in the entries below.
+- 2026-11-24 (Checkpoint D ship fixes): A card no longer offers its `+` once the window is behind another.
+  `on_hover` hears of no exit when the app is switched away with the pointer on a card, so the card kept its `+` for as long as the window stayed behind; the reviewer saw it in three shots over two minutes.
+  The card under the pointer is forgotten when the window stops being in front (`checkNew`), and a pointer move over a card names it again, whether or not an entry was heard.
+  That move redraws when the card has a `+` to offer or another card was the one named, so a card whose exit was never heard gives its `+` up.
+  The second half also covers a list that scrolled or reordered under a still pointer, and a sidebar hidden with the pointer on a card, from the pointer's next move over a card.
+  Shown live with the window behind another app and the hover forced on one card: the `+` stayed with the forgetting switched off, and went with it on.
+  Left as it is: until that next move, a `+` rides with its card when the list is scrolled by the wheel.
+  A wheel handler on the list could forget the card at once, but whether it would take the scroll from the list could not be tried without a pointer.
+  Checked by hand, still open: the pointer leaving a window that is in front straight off a card.
+- 2026-11-24 (Checkpoint D ship fixes): A drag let go where neither a card nor the list hears the release is over at the pointer's next move in the window.
+  This replaces the Checkpoint D review entry on `pressed` above, whose reason was wrong: a move event does say which button is held (`pressed_button` in `gpui-kit.d.ts`), and the app's manual gives this as the way to end such a drag.
+  It matters since Task 9: a `pressed` left set kept every card from offering its `+` until the next press on a card.
+  The mod's root watches every move in the window (`on_window_mouse_move`, the handler the manual's recipe is written for): one with no left button held ends the drag, and the dimmed card and the drop line go with it.
+  It ends a drag only once a move has reported the button held since the press (`held`).
+  No shipped mod reads `pressed_button`, so a build that never reports a held button leaves every drag and click as they were, and does not undo them.
+  `on_window_mouse_up` is not used: whether it runs before a card's own release is not known, and one that ran first would undo every click and drop.
+  A move is another event than the release, so it cannot run between a press and its own release.
+  Checked by hand, still open: that a drag still reorders and a click still selects, and that a drag let go on the header or a terminal loses its drop line.
+- 2026-11-24 (Checkpoint D ship fixes): The checkout list is read for no longer than 5s (`LIST_LIMIT`), and one that fails or cannot finish leaves the checkouts the place knew (`checkoutsAfter`, as `dirtyAfter` for the dirty mark).
+  This replaces "It keeps the 30s limit of the other ref reads: it scans no worktree" in the review entry above.
+  The list scans no worktree, but it looks for each worktree's folder, so one on a drive that does not answer held the place's repo, branch and nesting back for up to 30s.
+  It grows with the number of worktrees the repo's folder names: 18ms for 12, 0.33s for 2,000 and 3.4s for 20,000, as the passes measured.
+  It stays with the ref reads and not on a lane of its own: a third lane would take the runs past 12, and behind the dirty reads a `+N` would wait up to 10s per place ahead of it.
+  The place's refs are still drawn with the list and not before it: drawing them first would redraw the window twice for every look that changed something, to save at most 5s where a list cannot finish.
+  The checkouts a place knew are kept only for the same repo (`gitInfo`): the same folder can come to be in another one.
+- 2026-11-24 (Checkpoint D ship fixes): How Claude Code is started is asked again at the `+`'s click.
+  This replaces "so the click opens the dialog at once" in the Task 9 entry above.
+  The answer was learned once and never again, so a change to `programs.json` was ignored by the `+` until the mod reloaded, while the + menu, which asks each time it opens, followed it at once.
+  The app keeps its answer for a minute: measured from a throwaway mod, since deleted, 310ms for a new answer and none for a kept one.
+  When the app cannot answer, or not within 1.5s (`ASK_LIMIT`), the agent is started as learned, as the + menu falls back to the last list it knew.
+  A dialog that opened seconds after its click would open over something else.
+  When the answer has no Claude Code to start, no dialog opens and the `+` goes.
+  One ask runs at a time, so a second click while it runs opens no second dialog, and a space closed meanwhile opens none: the dialog would go by the home folder.
+  While the table names nobody for the `+` to start it is asked again once a minute, as it is until it first answers, so a `run` set right in `programs.json` brings the `+` back.
+- 2026-11-24 (Checkpoint D ship fixes): `worktreeAgent` takes a `run` only when it is a list of words whose first names a program.
+  It is handed on as a command and its arguments.
+  The app's types promise as much; the table can be changed by hand in `programs.json`.
+  An entry with no name is called Claude Code in the `+`'s tooltip.
+- 2026-11-24 (Checkpoint D ship fixes): Known and left as it is: a count the list gets wrong.
+  A worktree whose folder was moved and linked back from its old path is listed under the old path while its place answers with the new one, so it counts as not open until `git worktree repair` is run.
+  Counting a place by its live folder would help only if the terminal reports the old path, which is not known.
+  A locked worktree on a drive that is unplugged is never marked for pruning by git, so it stays counted, and the shipped dialog offers it the same.
+  A folder name with a line break in it, or a worktree entry written into the repo's folder by hand, can add to the count or take from it.
+  A listed path is only compared and counted: it is never an argument, never read or written and never drawn.
+- 2026-11-24 (Checkpoint D ship fixes): Answered without a change.
+  The `+` is safe to click: the shipped dialog takes its repo and machine from the same place the card shows, and does nothing until a branch is typed and confirmed.
+  A space whose id is `__proto__` would break the card's color lookup; it takes a terminal labelled so by hand, the code is the shipped `spaces` mod's line for line, and it is left as shipped.
+  The chip and the `+` are reached by pointer only, as every control of the shipped sidebar is, and no key or palette entry opens the worktree dialogs in this build; both dialogs are still reached from the space menu and the + menu as well.
+  Line ends other than a line feed are not read, by `checkout` and the shipped dialog alike: git writes line feeds on every system.
+- 2026-11-24 (Checkpoint D ship fixes): The unit tests gained the cases the coverage analysis found missing by changing the code one step at a time and running them.
+  A checkout inside another, a folder name too long or too oddly spaced to draw, a repo's cards with another repo's between them, and a list known to be empty before a later one: each change that had passed now fails a test.
+  The last pins a rule and not a fix: a list with nothing in it is an answer, as for a submodule's repo with no worktree.
+  Also a list without its last blank line, the repo's own checkout kept first, a prunable mark with no reason, and no list at all.
+  Changes that still pass are ones no real `git worktree list` output tells apart.
+- 2026-11-24 (Checkpoint D ship fixes): `checkouts` in `model.js` is now `checkoutsAfter`, no longer one letter from `checkout`, and `namesAsked` in `main.js` is `agentsAsked`, since it times the whole answer.
+  The chip's and the `+`'s comments say why their release stops too: the card would take one that ends a drag as a drop on it.
+- 2026-11-24 (Checkpoint D ship fixes): A fresh `agent-skills:code-reviewer` then read the fixes and asked for changes: 2 required, 6 optional, nits.
+  Required: the first form of the drag's end read `pressed_button` in the card's own move handler, where a build that did not report it would have undone every click, and a second click on the `+` during its ask opened a second dialog.
+  Both are fixed as the entries above now say, and the optional findings were taken, except the wheel handler and drawing the refs before the list, answered above.
 
 ## Open questions
 

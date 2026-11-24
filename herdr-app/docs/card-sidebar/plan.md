@@ -1,7 +1,7 @@
 # Implementation plan: Herdr card sidebar
 
 Spec: [SPEC.md](SPEC.md), approved 2026-11-22.
-Status: approved 2026-11-22, Checkpoint A shipped 2026-11-23, Checkpoint B shipped 2026-11-23, Checkpoint C shipped 2026-11-24, its ship fixes committed 2026-11-24, Phase 3 next.
+Status: approved 2026-11-22, Checkpoint A shipped 2026-11-23, Checkpoint B shipped 2026-11-23, Checkpoint C shipped 2026-11-24, its ship fixes committed 2026-11-24, Task 8 built 2026-11-24, Task 9 built 2026-11-24, Checkpoint D tested 2026-11-24, reviewed 2026-11-24, shipped 2026-11-24, its closing items next.
 Task list target: this file (the project keeps spec, plan and tasks together under `herdr-app/docs/card-sidebar/`, not in `tasks/`).
 
 ## Overview
@@ -198,7 +198,7 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
 
 ### Phase 3: Worktrees
 
-- [ ] **Task 8: `+N` chip for checkouts not open** (M)
+- [x] **Task 8: `+N` chip for checkouts not open** (M)
   - Description: Per repo, read `git worktree list --porcelain` inside the existing refresh path (same cache, same watch, same concurrency cap), count checkouts that are not the live folder of an open space on that machine, and show `+N` on the repo card.
     Clicking it opens the shipped `worktree` dialog with `action: "open"`.
     Porcelain parsing and the count are pure, tests first.
@@ -209,8 +209,16 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
   - Verify: unit tests; `herdr-app check`; shot with the chip and shot of the picker.
   - Dependencies: Task 5.
   - Files: `mods/spaces-cards/main.js`, `mods/spaces-cards/model.js`, `mods/spaces-cards/model.test.js`.
+  - Built 2026-11-24: one chip per repo, on the first card drawn for it, and the checkout list is read after the two ref reads, not beside them; see the spec's decisions log.
+    Unit tests 138 and 20 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors.
+    Shown live in the scratch repo: `+1` with one closed checkout, gone once it is opened as a space, back once that space is closed.
+  - Carried to Checkpoint D: the chip's click and choosing a checkout in the dialog were not exercised, because nothing here can drive the pointer or the keyboard without a macOS Accessibility grant.
+    The dialog was opened with the chip's own arguments from a throwaway mod and listed the closed checkout; the nested space was made with `space.new`.
+    Nothing on a remote machine was shown.
+  - Checkpoint D review: a repo's own folder is never counted as a checkout (a submodule's, one made with `--separate-git-dir`), the count comes from the first checkout list the repo's spaces know, and a list that cannot finish leaves the place as found; see the spec's decisions log.
+  - Checkpoint D ship fixes: the checkout list is read for 5s at most, and one that fails or cannot finish leaves the checkouts the place knew of that repo; see the spec's decisions log.
 
-- [ ] **Task 9: Hover `+` creates a worktree with an agent** (S)
+- [x] **Task 9: Hover `+` creates a worktree with an agent** (S)
   - Description: Show a `+` button on a repo card on hover that opens the shipped `worktree` dialog with `{ space, action: "new", argv }`, where `argv` is Claude Code's `run` from `knownAgents()`.
     The button stops the press so it does not start a card drag or select.
   - Acceptance:
@@ -219,12 +227,44 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
     - Clicking `+` never selects or drags the card.
   - Verify: `git -C ~/Development/scratch/herdr-e2e worktree list`; `herdr-app ls` shows the new space with a `claude-code` terminal; shot of the hover state and of the result.
   - Dependencies: Task 8.
-  - Files: `mods/spaces-cards/main.js`.
+  - Files: `mods/spaces-cards/main.js`, `mods/spaces-cards/model.js`, `mods/spaces-cards/model.test.js`.
+  - Built 2026-11-24: the `+` is on every card inside a repo, takes room on line 1 only while it shows, and starts Claude Code as `worktreeAgent` in `model.js` picks it from `knownAgents()`; see the spec's decisions log.
+    Unit tests 144 and 20 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors.
+    Shown live in the scratch repo: branch `feat/hover-plus` made `~/Development/worktrees/herdr-e2e/feat-hover-plus`, opened as a nested space with a `claude-code` terminal.
+  - Carried to Checkpoint D: a real hover and a real click on the `+` were not exercised, because nothing here can drive the pointer or the keyboard without a macOS Accessibility grant.
+    The hover shot was made with the card forced to show its `+`, and the dialog was opened with the button's own arguments from a throwaway mod, with the branch passed in and not typed.
+    That a click never selects or drags the card rests on the stopped press, and the `+` tooltip inside the card's tooltip area is untried; both are checked by hand.
+    The `feat-hover-plus` space and its checkout stay open in the scratch repo until the checkpoint's cleanup.
+  - Checkpoint D review: `worktreeAgent` gives the agent's name as one plain line with its `run`, and a card redraws on hover only when it has a `+` to offer; see the spec's decisions log.
+  - Checkpoint D ship fixes: a card gives its `+` up once the window is behind another, a drag let go outside the list ends at the pointer's next move, and how Claude Code is started is asked again at the click; see the spec's decisions log.
 
 ### Checkpoint D: Complete
 
-- [ ] Test, review, ship as above.
-- [ ] Commit: `feat(herdr-app): surface unopened worktrees and one-click creation`.
+- [x] Test, review, ship as above.
+  - Test 2026-11-24: unit tests 144 and 20 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file, shot reviewed at full size.
+    Task 8 shown live in the scratch repo: `+1` once the long-branch worktree space was closed, the Open worktree dialog opened with the chip's own arguments listed that checkout as not open, and the chip went once the checkout was a space again.
+    Task 9 shown live in the scratch repo: the `+` drawn on every repo card beside the state slot and the chip with no overlap, the New worktree dialog opened with the button's own arguments, and branch `test/checkpoint-d` made `~/Development/worktrees/herdr-e2e/test-checkpoint-d`, opened as a nested space with a `claude-code` terminal.
+    Nothing here can drive the pointer or the keyboard (no macOS Accessibility grant), so the dialogs were opened from a throwaway mod, since deleted, and the `+` was forced on by a one-line edit to `main.js`, since reverted to the same file hash.
+  - Checked by hand, still open: the chip's click and choosing a checkout in its dialog, the `+` showing on hover and going on leave, the `+` click with a typed branch, that neither click selects or drags the card, and the `+` tooltip inside the card's tooltip area.
+    Carried from Checkpoint C as before: the card hover tooltip, a pointer drag and a real `ctrl-N` press.
+  - Left for the cleanup below: the `test/checkpoint-d` checkout and branch, its space closed so the repo card shows `+1` for the chip's hand check.
+    Not shown live: anything on a remote machine.
+  - Review 2026-11-24: a fresh `agent-skills:code-reviewer` asked for changes (1 required, 4 optional, nits); all were fixed or answered, see the "Checkpoint D review" entries in the spec's decisions log.
+    The required fix was reproduced in the live window before and after: a space in a scratch submodule showed `+1` for good, and shows no chip now.
+    The simplification pass changed nothing.
+    After it: unit tests 151 and 20 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file, shot reviewed at full size.
+    Approved as logged: a drag let go outside the list still leaves `pressed` set, as shipped, and a submodule repo's own closed checkout is not counted while one of its worktrees is open.
+    Not shown live: a checkout list that cannot finish (it needs a 30s timeout) and anything on a remote machine.
+  - Ship 2026-11-24: fresh code review, security audit and test coverage passes found nothing critical.
+    The code review asked for changes (2 required, 3 optional, nits), the audit found 2 low and 3 informational points, the coverage analysis 4 medium and 4 low gaps; each was fixed or answered, see the "Checkpoint D ship fixes" entries in the spec's decisions log.
+    A fresh `agent-skills:code-reviewer` then read the fixes and asked for changes (2 required, 6 optional, nits); those were fixed or answered in the same entries.
+    This replaces "approved as logged" for the drag let go outside the list in the review step above: it now ends at the pointer's next move.
+    One required fix was shown live: with the window behind another app and the hover forced on one card by a one-line edit to `main.js`, since reverted to the same file hash, the `+` stayed without the fix and went with it.
+    How long the app takes to say how an agent is started was measured from a throwaway mod, since deleted: 310ms for a new answer, none for a kept one.
+    After the fixes: unit tests 164 and 20 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file, shot reviewed at full size.
+  - Checked by hand, added by the ship fixes: a drag still reorders and a click still selects, a drag let go on the header or a terminal loses its drop line at the next move, the `+` goes when another app comes to the front and is back at the first move over the card, a second click on the `+` opens no second dialog, and the pointer leaving the window straight off a card.
+    Not shown live: a checkout list that cannot finish in 5s, a `run` changed in `programs.json` between two clicks, and anything on a remote machine.
+- [x] Commit: `feat(herdr-app): surface unopened worktrees and one-click creation`.
 - [ ] All 12 spec success criteria checked off with evidence; all 7 end to end states captured and inspected for clipping, alignment and theme-foreign colors.
 - [ ] Scratch repo, its checkouts, its spaces and temporary feed files removed; `herdr-app ls` and `git status` are clean of test leftovers.
 - [ ] README "Layout" section describes `herdr-app/` and how to re-diff the clones against a newer shipped version (`cloned_from` in each clone).

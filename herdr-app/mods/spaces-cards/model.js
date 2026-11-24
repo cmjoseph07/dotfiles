@@ -151,12 +151,36 @@ export function checkout(top, common) {
   return { top: line(top), repo: line(common) };
 }
 
+// Every checkout of a repo, its own first, after one more run of
+// `git worktree list --porcelain`: their folders as git names them, which is how
+// --show-toplevel names a place's `top`. `was`: those the place knew, null: unknown, not
+// none. `list`: the run, null when it could not finish. Only a list that ran can say; any
+// other leaves them as they were, so a repo's `+N` does not come and go with a slow list.
+// `repo`: the repo's own folder (`checkout`). git lists the repo's own checkout by cutting
+// /.git off that folder, so a repo kept elsewhere (a submodule's, a bare one, one made with
+// --separate-git-dir) is listed as that folder itself: no checkout. Nor is a worktree git
+// would prune, whose folder is gone. Read line by line, as the shipped worktree dialog
+// reads it, so a folder with a line break in its name is not listed under that name.
+export function checkoutsAfter(was, list, repo) {
+  if (list?.code !== 0) return was;
+  return list.stdout
+    .split(/\n\n+/)
+    .map((block) => block.split("\n"))
+    .filter(([path, ...marks]) => path.startsWith("worktree ") && !marks.some((mark) => mark === "bare" || mark.startsWith("prunable")))
+    .map(([path]) => path.slice("worktree ".length))
+    .filter((path) => path !== repo);
+}
+
 // A place's repo as its card draws it. `top`, `repo`: its `checkout`. `branch`: the run of
 // `git symbolic-ref -q HEAD`, which fails on a detached head. `counts`: the run of
 // `git rev-list --left-right --count HEAD...@{upstream}`, which fails without an upstream.
+// `list`: the run `checkoutsAfter` reads. `known`: what the place knew before this look
+// (`afterLook`), whose checkouts are kept only for the same repo: a folder can come to be in
+// another one.
 // The repo's own .git folder names it, and with its machine tells it from every other; a
 // worktree's top is not the folder that .git is in.
-export function gitInfo({ machine, top, repo, branch, counts, dirty }) {
+export function gitInfo({ machine, top, repo, branch, counts, list, dirty, known = null }) {
+  const id = JSON.stringify([machine, repo]);
   const name = repo.endsWith("/.git") ? base(repo.slice(0, -5)) : base(repo).replace(/\.git$/, "");
   const [ahead, behind] = counts.code === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : [0, 0];
   return {
@@ -165,8 +189,10 @@ export function gitInfo({ machine, top, repo, branch, counts, dirty }) {
     ahead,
     behind,
     dirty,
-    repo: JSON.stringify([machine, repo]),
+    repo: id,
     linked: repo !== `${top}/.git`,
+    top,
+    checkouts: checkoutsAfter(known?.repo === id ? known.checkouts : null, list, repo),
   };
 }
 
@@ -201,6 +227,36 @@ export function visualOrder(rows) {
     for (const r of mine.filter(last)) out.push({ ...r, nested: false });
   }
   return out;
+}
+
+// The `+N` on a repo's card: how many of the repo's checkouts no space is in. Said once, on
+// the first card drawn for the repo, from the first list its spaces' places know: one
+// place's list failing does not hide the others'. A repo is one machine's (`gitInfo`), so
+// a space elsewhere opens nothing here.
+// `rows`: as `visualOrder` gives them. Each comes back with its `more`, 0 for nothing to say.
+export function unopened(rows) {
+  const said = new Set();
+  return rows.map((r) => {
+    if (!r.g || said.has(r.g.repo)) return { ...r, more: 0 };
+    said.add(r.g.repo);
+    const places = rows.filter((k) => k.g?.repo === r.g.repo).map((k) => k.g);
+    const open = new Set(places.map((g) => g.top));
+    const listed = places.find((g) => g.checkouts)?.checkouts ?? [];
+    return { ...r, more: listed.filter((path) => !open.has(path)).length };
+  });
+}
+
+// The agent a repo card's `+` starts in the worktree it makes: Claude Code, as the app's
+// table starts it. Whether it is installed is not asked: that differs per machine, and
+// the table is the same on all of them.
+// `known`: what `knownAgents()` answered, null before it has. Gives its `name` as the +'s
+// tooltip draws it and its `run`, or null: nobody to start. The run is handed on as a
+// command and its arguments, so only a list of words that names a program is one.
+export function worktreeAgent(known) {
+  const agent = (known ?? []).find((a) => a.key === "claude");
+  const run = agent?.run;
+  const runs = Array.isArray(run) && run.every((word) => typeof word === "string") && Boolean(run[0]?.trim());
+  return runs ? { name: plain(agent.name) || "Claude Code", run } : null;
 }
 
 // The `space.move` calls that turn the real order into the drawn one, none when they
