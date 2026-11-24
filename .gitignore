@@ -11,7 +11,8 @@ fish/conf.d/99-local.fish
 raycast/
 
 # herdr-app: the app rewrites its shipped layouts, mods, type files and state on
-# every start, so only the personal clones, settings and their docs are tracked
+# every start, so only the personal clones, settings, their docs and the
+# upstream snapshots are tracked
 herdr-app/*
 !herdr-app/docs/
 herdr-app/docs/**
@@ -31,6 +32,23 @@ herdr-app/mods/*/*
 !herdr-app/mods/*/*.js
 !herdr-app/mods/*/*.svg
 !herdr-app/mods/*/mod.json
+# upstream: the shipped files the clones were last merged from, and the drift
+# test that compares them with what Herdr ships now (docs/clone-upkeep/SPEC.md).
+# Only the five snapshots and the test's two files, whatever else lands there
+!herdr-app/upstream/
+herdr-app/upstream/*
+!herdr-app/upstream/drift.js
+!herdr-app/upstream/drift.test.js
+!herdr-app/upstream/mods/
+herdr-app/upstream/mods/*
+!herdr-app/upstream/mods/spaces/
+!herdr-app/upstream/mods/agents/
+herdr-app/upstream/mods/*/*
+!herdr-app/upstream/mods/*/main.js
+!herdr-app/upstream/mods/*/mod.json
+!herdr-app/upstream/layouts/
+herdr-app/upstream/layouts/*
+!herdr-app/upstream/layouts/main.json
 
 # retired: not cross-platform, kept locally but no longer pushed
 ghostty/
