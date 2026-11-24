@@ -48,6 +48,5 @@ Windows is covered via WSL2; WezTerm on native Windows falls back to PowerShell.
 - `herdr-app/` - Herdr desktop app: only the personal `cards` layout, its two cloned sidebar mods, `settings.json`, and `docs/` are tracked; shipped layouts, mods, type files, and app state are rewritten by the app
   - The clones do not follow Herdr updates; the [spec](herdr-app/docs/card-sidebar/SPEC.md) covers the design and [how to re-diff them](herdr-app/docs/card-sidebar/SPEC.md#keeping-the-clones-current) against a newer release
 - `mise/` - global tool versions (node lts, neovim stable); mise provisions these, so `bootstrap.fish` does not list them as system packages
-- `nvim/` - LazyVim config; `lazy-lock.json` pins plugin versions so a fresh clone reproduces the same setup
 - `wezterm/` - terminal config, platform-aware
 - `bootstrap.fish` - new machine setup
