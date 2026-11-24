@@ -85,7 +85,7 @@ find herdr-app -name '*.error'
 
 # See the window
 herdr-app do layout.switch '{"name":"cards"}'
-herdr-app shot "$TMPDIR/herdr-cards.png"
+herdr-app shot "${TMPDIR:?}/herdr-cards.png"
 
 # Context feed, without a live agent
 echo '{"context_window":{"used_percentage":42}}' | HC_TERMINAL_ID=spec-test bash ~/.claude/statusline.sh

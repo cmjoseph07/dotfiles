@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { CLONE_OF, drift, verdict } from "./drift.js";
+import { CLONE_OF, drift, filesBelow, namesMod, verdict } from "./drift.js";
 
 const SHIPPED = {
   "mods/spaces/main.js": "export default class Spaces {}\n",
@@ -50,7 +50,7 @@ for (const [path, name] of Object.entries(NAME_OF)) {
     const changed = { ...SHIPPED, [path]: SHIPPED[path].replace("o", "0") };
     assert.notEqual(changed[path], SHIPPED[path], `the change left ${path} as it was`);
     // Sizes are compared first: only a change of one size reaches the bytes.
-    assert.equal(changed[path].length, SHIPPED[path].length, `the change moved the size of ${path}, so no byte is compared`);
+    assert.equal(Buffer.byteLength(changed[path]), Buffer.byteLength(SHIPPED[path]), `the change moved the size of ${path}, so no byte is compared`);
     assert.deepEqual(drift(...folders(t, SHIPPED, changed)), [name]);
   });
 
@@ -174,6 +174,50 @@ for (const mod of ["spaces", "agents"]) {
     symlinkSync(`../elsewhere/${mod}`, join(snapshots, `mods/${mod}`));
     assert.deepEqual(drift(snapshots, app), [mod]);
   });
+
+  // Only a real folder is a mod folder: what is there instead differs, whatever it holds.
+  test(`drift reports ${mod} when its folder is, on both sides, a link to one same file`, (t) => {
+    const [snapshots, app] = folders(t, withoutMod(SHIPPED, mod), withoutMod(SHIPPED, mod));
+    const one = join(dirname(snapshots), "one.js");
+    writeFileSync(one, SHIPPED[`mods/${mod}/main.js`]);
+    for (const side of [snapshots, app]) symlinkSync(one, join(side, `mods/${mod}`));
+    assert.deepEqual(drift(snapshots, app), [mod]);
+  });
+
+  test(`drift reports ${mod} when its folder is, on both sides, a file of the same bytes`, (t) => {
+    const [snapshots, app] = folders(t, withoutMod(SHIPPED, mod), withoutMod(SHIPPED, mod));
+    for (const side of [snapshots, app]) writeFileSync(join(side, `mods/${mod}`), SHIPPED[`mods/${mod}/main.js`]);
+    assert.deepEqual(drift(snapshots, app), [mod]);
+  });
+}
+
+// mods and layouts are only the way to a name: a link there is followed, on either side, and
+// what it leads to is compared as if it were there.
+const CHANGED_BELOW = { mods: "mods/agents/main.js", layouts: "layouts/main.json" };
+// The shipped files on both sides, with one side's top folder moved to elsewhere/ and a link
+// where it was; that side's folder is returned last.
+const linkedAbove = (t, top, side) => {
+  const moved = Object.fromEntries(Object.entries(SHIPPED).map(([path, text]) => [path.startsWith(`${top}/`) ? `elsewhere/${path}` : path, text]));
+  const [snapshots, app] = side === "snapshot" ? folders(t, moved, SHIPPED) : folders(t, SHIPPED, moved);
+  const linked = side === "snapshot" ? snapshots : app;
+  symlinkSync(`elsewhere/${top}`, join(linked, top));
+  return [snapshots, app, linked];
+};
+for (const side of ["snapshot", "shipped"]) {
+  for (const top of Object.keys(CHANGED_BELOW)) {
+    test(`drift follows a link where the ${side} ${top} folder was`, (t) => {
+      const [snapshots, app, linked] = linkedAbove(t, top, side);
+      assert.deepEqual(drift(snapshots, app), [], "the link alone was reported");
+      writeFileSync(join(linked, "elsewhere", CHANGED_BELOW[top]), "changed\n");
+      assert.deepEqual(drift(snapshots, app), [NAME_OF[CHANGED_BELOW[top]]], "a change behind the link went unseen");
+    });
+  }
+
+  test(`drift lists a mod folder behind a link where the ${side} mods folder was`, (t) => {
+    const [snapshots, app, linked] = linkedAbove(t, "mods", side);
+    writeFileSync(join(linked, "elsewhere/mods/agents/added.js"), "");
+    assert.deepEqual(drift(snapshots, app), ["agents"]);
+  });
 }
 
 // The file system will not look below a file: that is not a name that is absent.
@@ -208,16 +252,18 @@ test("drift reports spaces, and does not throw, when a shipped file is over 2 Gi
   assert.deepEqual(drift(snapshots, app), ["spaces"]);
 });
 
-// drift in a process of its own, ended if it has not answered in 5 seconds: nothing in this
-// process could end a read of a pipe, which waits for a writer, or a walk that never ends.
-const driftAlone = (snapshots, app) => {
-  const script = `import { drift } from ${JSON.stringify(import.meta.resolve("./drift.js"))};
-console.log(JSON.stringify(drift(${JSON.stringify(snapshots)}, ${JSON.stringify(app)})));`;
+// A function of drift.js in a process of its own, ended if it has not answered in 5 seconds:
+// nothing in this process could end a read of a pipe, which waits for a writer, or a walk that
+// never ends.
+const alone = (name, ...args) => {
+  const script = `import { ${name} } from ${JSON.stringify(import.meta.resolve("./drift.js"))};
+console.log(JSON.stringify(${name}(...${JSON.stringify(args)})));`;
   const run = spawnSync(process.execPath, ["--input-type=module", "--eval", script], { encoding: "utf8", timeout: 5000 });
-  assert.equal(run.signal, null, "drift did not answer in 5 seconds");
+  assert.equal(run.signal, null, `${name} did not answer in 5 seconds`);
   assert.equal(run.status, 0, run.stderr);
   return JSON.parse(run.stdout);
 };
+const driftAlone = (snapshots, app) => alone("drift", snapshots, app);
 
 // The other side is an empty file, so the sizes alone cannot tell it from the pipe.
 const emptied = { ...SHIPPED, "mods/spaces/main.js": "" };
@@ -259,6 +305,66 @@ test("drift reports spaces without walking into links to folders that branch and
   for (let i = 0; i < 24; i++) for (const link of ["a", "b"]) symlinkSync(`../d${i + 1}`, join(app, `elsewhere/d${i}/${link}`));
   symlinkSync("../../elsewhere/d0", join(app, "mods/spaces/deep"));
   assert.deepEqual(driftAlone(snapshots, app), ["spaces"]);
+});
+
+// filesBelow is how drift lists a mod folder, and how the clones' own tests list theirs.
+const folderOf = (t, files) => folders(t, files, {})[0];
+
+test("filesBelow goes down into a real folder below", (t) => {
+  const folder = folderOf(t, { "main.js": "", "lib/util.js": "", "lib/deep/x.js": "" });
+  assert.deepEqual(filesBelow(folder).sort(), ["lib/deep/x.js", "lib/util.js", "main.js"]);
+});
+
+// Walked into, a link back to its own folder holds the folder again at every depth.
+test("filesBelow lists a link to its own folder as one entry, never walked into", (t) => {
+  const folder = folderOf(t, { "main.js": "" });
+  symlinkSync(".", join(folder, "here"));
+  assert.deepEqual(alone("filesBelow", folder).sort(), ["here", "main.js"]);
+});
+
+// 25 folders in a chain, each with two links to the next, hold 2^24 paths and no loop.
+test("filesBelow lists links to folders that branch and never loop as one entry, in time", (t) => {
+  const folder = folderOf(t, { "main.js": "" });
+  const chain = join(dirname(folder), "chain");
+  for (let i = 0; i < 25; i++) mkdirSync(join(chain, `d${i}`), { recursive: true });
+  for (let i = 0; i < 24; i++) for (const link of ["a", "b"]) symlinkSync(`../d${i + 1}`, join(chain, `d${i}/${link}`));
+  symlinkSync(join(chain, "d0"), join(folder, "deep"));
+  assert.deepEqual(alone("filesBelow", folder).sort(), ["deep", "main.js"]);
+});
+
+// A URL ends its path at a "#": a path listed or read through one names another file.
+test("filesBelow lists a name holding a # whole, as a path that reads the file", (t) => {
+  const folder = folderOf(t, { "lib/a#b.js": "export const ab = 1;\n" });
+  const listed = filesBelow(folder);
+  assert.deepEqual(listed, ["lib/a#b.js"]);
+  assert.equal(readFileSync(join(folder, listed[0]), "utf8"), "export const ab = 1;\n");
+});
+
+// namesMod is what the clones' own tests look for a shipped mod's name with: taken code is
+// carried by hand too, so the name is found however it is written.
+test("namesMod finds a mod named in any quote and spacing, and its folder", () => {
+  for (const text of ['mod: "x"', "mod: 'x'", "mod: `x`", '"mod": "x"', "'mod': 'x'", 'mod : "x"', 'mod:"x"', 'svg("mods/x/icon.svg")']) {
+    assert.ok(namesMod("x").test(text), `not found: ${text}`);
+  }
+});
+
+test("namesMod passes over another mod whose name starts with it", () => {
+  for (const text of ['mod: "x-clone"', '"mod": "x-clone"', "mod: `x-clone`", 'svg("mods/x-clone/icon.svg")']) {
+    assert.ok(!namesMod("x").test(text), `found: ${text}`);
+  }
+});
+
+test("namesMod passes over a key that only starts or ends with mod", () => {
+  for (const text of ['module: "x"', 'submod: "x"', '"submod": "x"', 'node_mod: "x"']) {
+    assert.ok(!namesMod("x").test(text), `found: ${text}`);
+  }
+});
+
+test("namesMod reads a mod's name as it is written, never as a pattern", () => {
+  assert.ok(namesMod("x.y").test('mod: "x.y"'), 'not found: mod: "x.y"');
+  for (const text of ['mod: "xzy"', 'svg("mods/xzy/icon.svg")']) {
+    assert.ok(!namesMod("x.y").test(text), `found: ${text}`);
+  }
 });
 
 // Root reads and searches whatever the permissions say: the refusals below never reach it.

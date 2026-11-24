@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { filesBelow, namesMod } from "../../upstream/drift.js";
 
 // This mod is the shipped agents list with its own changes, merged at each uptake: these read
 // it, and the snapshot of the version it was last merged with, as text.
@@ -39,12 +40,8 @@ test("every line that opens the sort menu opens this mod", () => {
 
 // Taken code names this mod where Herdr's names the shipped one, in every file the mod runs.
 // Its tests are left out: they read the snapshot, under the shipped name. The folder is
-// listed one level at a time and only its real folders are gone down into, as drift does: a
-// link is a name, never walked into.
-const below = (folder, path = "") =>
-  readdirSync(join(folder, path), { withFileTypes: true })
-    .flatMap((entry) => (entry.isDirectory() ? below(folder, join(path, entry.name)) : [join(path, entry.name)]));
-const code = below(import.meta.dirname)
+// listed as drift lists a mod folder: a link is a name, never walked into.
+const code = filesBelow(import.meta.dirname)
   .filter((file) => file.endsWith(".js") && !file.endsWith(".test.js"))
   .map((file) => ({ file, text: readFileSync(join(import.meta.dirname, file), "utf8") }));
 
@@ -53,8 +50,6 @@ test("the scan reads main.js, the file this mod runs", () => {
   assert.ok(code.some(({ file }) => file === "main.js"), `the scan read ${code.length} files, not main.js`);
 });
 
-for (const shipped of [/mod:\s*["']agents["']/, /mods\/agents\//]) {
-  test(`no file this mod runs names the shipped agents list: ${shipped}`, () => {
-    assert.deepEqual(code.filter(({ text }) => shipped.test(text)).map(({ file }) => file), []);
-  });
-}
+test("no file this mod runs names the shipped agents list", () => {
+  assert.deepEqual(code.filter(({ text }) => namesMod("agents").test(text)).map(({ file }) => file), []);
+});

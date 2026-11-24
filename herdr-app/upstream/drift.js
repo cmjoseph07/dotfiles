@@ -1,8 +1,9 @@
 // Which shipped Herdr mods and layouts differ from their snapshots, and what the live test
-// of each does about it. No herdr or gpui-kit import, so Node can test it.
+// of each does about it; and how the clones' own tests list their folders and look for a
+// shipped name. No herdr or gpui-kit import, so Node can test it.
 
 import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 // Never Herdr's sources: the app writes the first two into every mod folder, and Finder
 // leaves the third in any folder it showed.
@@ -16,20 +17,24 @@ const stat = (path) => statSync(path, { throwIfNoEntry: false });
 const lstat = (path) => lstatSync(path, { throwIfNoEntry: false });
 const exists = (path) => lstat(path) !== undefined;
 
-// Whatever is not a folder counts as a file, a link included: one level is listed at a time,
-// and only a real folder is gone down into, so a link to a folder is never walked into.
-const sources = (folder, below = "") =>
-  readdirSync(join(folder, below), { withFileTypes: true })
-    .filter((entry) => !NOT_SHIPPED.includes(entry.name))
-    .flatMap((entry) => (entry.isDirectory() ? sources(folder, join(below, entry.name)) : [join(below, entry.name)]));
+// Everything below a folder but its folders, as paths relative to it. Whatever is not a real
+// folder counts as a file, a link included: one level is listed at a time and only a real
+// folder is gone down into, so a link to a folder is never walked into. The clones' own
+// tests list their mod folders with it too.
+export const filesBelow = (folder) => {
+  const below = (path) =>
+    readdirSync(join(folder, path), { withFileTypes: true })
+      .flatMap((entry) => (entry.isDirectory() ? below(join(path, entry.name)) : [join(path, entry.name)]));
+  return below("");
+};
 
-// A mod folder is listed only when it is a real folder. Anything else there, a link to a
-// folder included, is one entry: the folder itself, compared as a file, so it differs. A
-// folder that is not there lists nothing: no snapshot yet is a state, not a refusal.
+// A mod folder's files, or null when its path holds anything but a real folder (a link, to a
+// folder too, or a file): that is never a mod folder's snapshot, whatever it holds or leads
+// to. A folder that is not there lists nothing: no snapshot yet is a state, not a refusal.
 const filesIn = (folder) => {
   const entry = lstat(folder);
   if (entry === undefined) return [];
-  return entry.isDirectory() ? sources(folder) : [""];
+  return entry.isDirectory() ? filesBelow(folder).filter((file) => !NOT_SHIPPED.includes(basename(file))) : null;
 };
 
 // Only two regular files of one size are read: anything else where a file was (a folder, a
@@ -41,9 +46,12 @@ const same = (snapshot, shipped) => {
   return readFileSync(snapshot).equals(readFileSync(shipped));
 };
 
-// Every file on either side counts, so a file a release added or dropped is a difference.
-const modDiffers = (snapshot, shipped) =>
-  [...filesIn(snapshot), ...filesIn(shipped)].some((file) => !same(join(snapshot, file), join(shipped, file)));
+// A mod folder that is not a real folder, on either side, differs. Otherwise every file on
+// either side counts, so a file a release added or dropped is a difference.
+const modDiffers = (snapshot, shipped) => {
+  const [a, b] = [filesIn(snapshot), filesIn(shipped)];
+  return a === null || b === null || [...a, ...b].some((file) => !same(join(snapshot, file), join(shipped, file)));
+};
 
 const layoutDiffers = (snapshot, shipped) => !same(snapshot, shipped);
 
@@ -73,6 +81,14 @@ export const drift = (snapshots, app) =>
     .filter(([, { path, differs }]) =>
       differsOrCannotBeRead(() => exists(join(app, path)) && differs(join(snapshots, path), join(app, path))))
     .map(([name]) => name);
+
+// Where code names a mod: a mod key's value, key and value quoted any way and spaced any way,
+// or the mod's folder. A mod whose name only starts with it, such as its clone, is not it.
+// The clones' own tests look for the shipped mod each stands in for with it.
+export const namesMod = (mod) => {
+  const name = RegExp.escape(mod);
+  return new RegExp(`\\bmod["'\`]?\\s*:\\s*["'\`]${name}["'\`]|mods/${name}/`);
+};
 
 // The clone of each name, in the app folder: its cloned_from.version is the version the
 // snapshots hold.
