@@ -1,11 +1,14 @@
-// Workspace spaces: stable colored avatars, worktrees under their checkout,
-// grouped by machine when more than one is known. After a space's name, the repo
-// its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
-// switch, right-click for its menu, drag to reorder.
+// Workspace spaces as cards: the repo its first terminal is in now behind a stable
+// colored avatar and its most urgent state, what the space is about, then its branch,
+// ahead/behind and uncommitted changes beside its agents and their fullest context.
+// Worktrees sit under their checkout and spaces outside any repo come last, grouped by
+// machine when more than one is known. Click to switch, right-click for its menu, drag to reorder.
 
-import { View, div, svg } from "gpui-kit";
+import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
+import { spaces, machines, panes, agents, terminals, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, home, readTextFile } from "herdr";
+import { agentPrograms, avatarLetter, base, cardHead, cardState, cardTitle, cardTooltip, highestContext, plannedMoves, standing, visualOrder } from "./model.js";
+import { bandColor, describe, feedPath, parseFeed } from "./context.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -25,25 +28,23 @@ function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
-const rowHeight = ({ tree }) => (tree ? 28 : 30);
 const RAIL_CELL = 32;
-// A space's name and its git tail never shrink below this, so a short one ("api")
-// stays readable instead of turning into an ellipsis next to a long branch.
-const SIDE_MIN = 48;
+const AVATAR = 18;
+// A title takes two lines at most: this build has no line clamp, so the rest is cut off.
+const TITLE_LINE = 18;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
-const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
-// Places looked at together (two git runs each). All at once, a few hundred spaces
-// run out of the app's open files (256 when started from the Dock on macOS) or
+// Places looked at together (up to three git runs each). All at once, a few hundred
+// spaces run out of the app's open files (256 when started from the Dock on macOS) or
 // past a machine core's 16 running execs, and those spaces wait for FALLBACK.
-const AT_ONCE = 6;
+const AT_ONCE = 5;
 
-// Both runs, finished: a place isn't done while one of its runs still holds a slot.
-async function both(a, b) {
-  const done = await Promise.allSettled([a, b]);
+// Every run, finished: a place isn't done while one of its runs still holds a slot.
+async function finished(...runs) {
+  const done = await Promise.allSettled(runs);
   const failed = done.find((d) => d.status === "rejected");
   if (failed) throw failed.reason;
   return done.map((d) => d.value);
@@ -62,9 +63,14 @@ export function tone(t, status) {
   return t[status] ?? t.unknown;
 }
 
+// An agent's icon from the app's program table: a one-color glyph or a picture.
+function icon(p, size, color) {
+  return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
+}
+
 export default class Spaces extends View {
   init(_props, cx) {
-    this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
+    this.git = {}; // where() -> { name, branch (null: detached), ahead, behind, dirty, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
     this.pending = new Set(); // where()s to look at next
@@ -91,6 +97,30 @@ export default class Spaces extends View {
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // Refresh only when the refs could have changed (see `due`).
     cx.timer.every(250, (cx) => this.checkNew(cx));
+    // The cards' ages and elapsed times count in minutes.
+    cx.timer.every(30000, (cx) => cx.notify());
+    // Each Claude Code agent's context reading, by address.
+    this.context = new Map();
+    cx.timer.every(5000, (cx) => this.readContext(cx));
+    this.readContext(cx);
+  }
+
+  // Rereads the feed of every Claude Code agent; redraws only when a reading changed.
+  readContext(cx) {
+    const claude = agents().filter((a) => a.app === "claude-code");
+    if (!claude.length && !this.context.size) return;
+    const started = new Map(terminals().map((k) => [k.address, k.created_ms]));
+    cx.spawn(async (cx) => {
+      const readings = await Promise.all(claude.map(async (a) => {
+        const path = feedPath(home(), a.address);
+        const text = path ? await readTextFile(path).catch(() => null) : null;
+        return [a.address, parseFeed(text, started.get(a.address), Date.now())];
+      }));
+      const next = new Map(readings.filter(([, reading]) => reading));
+      if (JSON.stringify([...next]) === JSON.stringify([...this.context])) return;
+      this.context = next;
+      cx.notify();
+    });
   }
 
   checkNew(cx) {
@@ -229,11 +259,10 @@ export default class Spaces extends View {
   async check(key, cx) {
     const [on, cwd] = JSON.parse(key);
     this.checked[key] = Date.now();
-    this.unsure.delete(key);
     try {
       // Ref-only reads avoid scanning the worktree or waking its index watch.
       // Two reads: a folder name may itself contain a newline.
-      const [r, common] = await both(
+      const [r, common] = await finished(
         exec("git", ["rev-parse", "--path-format=absolute", "--show-toplevel"], { cwd, on }),
         exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd, on }),
       );
@@ -242,25 +271,37 @@ export default class Spaces extends View {
         if (!/not a git repository/i.test(r.code !== 0 ? r.stderr : common.stderr)) {
           this.unsure.add(key);
           this.git[key] ??= null;
-        } else this.git[key] = null;
+        } else this.answer(key, null);
         return;
       }
       // The repo's own .git folder names it; a worktree's top differs from it.
       const top = r.stdout.replace(/\n$/, ""), repo = common.stdout.replace(/\n$/, "");
-      const [branch, counts] = await both(
+      const [branch, counts, status] = await finished(
         exec("git", ["symbolic-ref", "-q", "HEAD"], { cwd, on }),
         exec("git", ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], { cwd, on }),
+        // The one read of the worktree, as the shipped worktree dialog asks it: without
+        // the index refresh a status would otherwise write, which would wake this repo's watch.
+        // It is also the one slow read: when it can't finish (a huge tree, the 30s limit),
+        // the place keeps its repo and branch and shows no dirty mark.
+        exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain"], { cwd, on }).catch(() => null),
       );
       const name = repo.endsWith("/.git") ? base(repo.slice(0, -5)) : base(repo).replace(/\.git$/, "");
       const [ahead, behind] = counts.code === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : [0, 0];
-      const info = { name, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : "(detached)", ahead, behind, repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git` };
-      this.git[key] = info;
+      const info = { name, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : null, ahead, behind, dirty: status?.code === 0 && status.stdout !== "", repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git` };
+      this.answer(key, info);
       if (!on) this.watch(repo, cx);
     } catch {
       // Couldn't ask (the machine is away): keep what it showed, look again later.
       this.git[key] ??= null;
       this.unsure.add(key);
     }
+  }
+
+  // Git's own word on a place. Until it lands the place stays unsure: the order reads
+  // `unsure` while a look is still running (see `ordered`).
+  answer(key, info) {
+    this.git[key] = info;
+    this.unsure.delete(key);
   }
 
   watch(repo, cx) {
@@ -295,42 +336,28 @@ export default class Spaces extends View {
       && this.ordering.machines.every(name => machines().some(m => m.name === name && m.layout === "ready"));
   }
 
-  // Spaces in order, each worktree space moved under its main checkout's.
+  // Spaces in the order drawn (model.js `visualOrder`), and the real order made to match
+  // it: a space's number (ctrl-1..9, the rail) is then its place on screen.
   ordered() {
-    const sp = spaces(), ps = panes();
+    const sp = spaces(), ps = panes(), ag = agents();
     const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
-    const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
-    const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
-    const nested = (r) => r.g?.linked && mains.has(r.g.repo);
-    const out = [];
-    const placed = new Set(); // repos whose worktrees are listed (under the first of its spaces)
-    for (const r of list) {
-      if (nested(r)) continue;
-      out.push({ ...r, tree: null });
-      if (!r.g || r.g.linked || placed.has(r.g.repo)) continue;
-      placed.add(r.g.repo);
-      const kids = list.filter((k) => nested(k) && k.g.repo === r.g.repo);
-      kids.forEach((k, n) => out.push({ ...k, tree: n === kids.length - 1 ? "└─" : "├─" }));
-    }
-    // Simulate the batch so later indexes include earlier moves. An attempted
-    // write can lose a sync conflict: allow the echo to settle before retrying.
+    const out = visualOrder(sp.map((w, i) => {
+      const key = where(w, ps), folder = place(w, ps);
+      const known = standing({ folder, git: this.git[key], unsure: this.unsure.has(key) });
+      return { w, i, g: this.git[key] ?? null, ...known, folder, agents: ag.filter((a) => a.space === w.id) };
+    }));
+    // An attempted write can lose a sync conflict: allow the echo to settle before retrying.
     const order = sp.map(w => w.id);
     const target = out.map(r => r.w.id);
+    const moves = plannedMoves(order, target);
     const key = JSON.stringify([order, target, machines()]);
-    if (order.every((id, i) => id === target[i])) {
+    if (!moves.length) {
       this.ordering = null;
     } else if (this.ordering?.key !== key || this.orderingDue(Date.now())) {
-      const moved = new Set();
-      this.ordering = { key, at: Date.now(), machines: [] };
-      for (let i = 0; i < out.length; i++) {
-        const from = order.indexOf(out[i].w.id);
-        if (from === i) continue;
-        run("space.move", { id: out[i].w.id, index: i + 1 });
-        moved.add(out[i].w.machine ?? null);
-        order.splice(i, 0, order.splice(from, 1)[0]);
-      }
-      this.ordering.machines = [...moved];
+      const machine = new Map(sp.map(w => [w.id, w.machine ?? null]));
+      this.ordering = { key, at: Date.now(), machines: [...new Set(moves.map(move => machine.get(move.id)))] };
+      for (const move of moves) run("space.move", move);
     }
     return out.filter(r => this.shown.has(r.w.id));
   }
@@ -338,7 +365,7 @@ export default class Spaces extends View {
   // The rows, under a header per machine once one isn't this computer.
   grouped(t, collapsed) {
     const rows = this.ordered();
-    const draw = (r) => (collapsed ? this.compact(r, t) : this.row(r, t));
+    const draw = (r) => (collapsed ? this.compact(r, t) : this.card(r, t));
     // Where the active space's row lands among the children this returns: the list scrolls by its direct
     // children, and machine headers, login notes and loading rows count too.
     this.activeAt = -1;
@@ -418,31 +445,44 @@ export default class Spaces extends View {
     });
   }
 
-  // Only what's unusual, after the name: "herdr \u00b7 spike \u21912 \u21931". The repo or
-  // branch goes when the name already says it (a worktree is named after its branch),
-  // and master/main go: nearly every space is on one. When the row is full, it
-  // and the name both start from their text's width and give way in proportion.
-  gitTail(g, tree, name, t) {
-    const raw = g.branch ?? "detached";
-    const same = (a) => a.toLowerCase() === name.toLowerCase();
-    const branch = same(raw) || raw === "master" || raw === "main" ? "" : raw;
-    const repo = tree || same(g.name) ? "" : g.name;
-    const where = [repo, branch].filter(Boolean).join(" \u00b7 ");
+  // Line 1's right side: the space's most urgent state, drawn as the agents list draws it.
+  stateSlot({ status, text }, t) {
+    const time = text && div().text_size(11).text_color(t.dim).child(text);
+    if (status === "blocked") return div().flex_none().px(6).h(18).rounded(5).bg(t.blocked + "26").text_size(10.5).font_semibold().text_color(t.blocked).flex().items_center().child("Needs you");
+    if (status === "working") return h_flex().flex_none().gap(5).items_center()
+      .child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900))
+      .when(Boolean(time), (el) => el.child(time));
+    if (status === "done") return h_flex().flex_none().gap(5).items_center().text_size(11).text_color(t.done)
+      .child(div().size(7).flex_none().rounded(4).bg(t.done))
+      .child("Done");
+    return time;
+  }
+
+  // Line 3: where the space is in git, then its agents and their fullest context. A long
+  // branch gives way in its middle, so both ends stay readable; master and main are shown
+  // too, or the line would be empty.
+  detailLine(g, programs, reading, t) {
     return h_flex()
-      .flex_auto()
-      .min_w(where ? SIDE_MIN : 0)
-      .gap(5)
-      .justify_end()
+      .gap(6)
       .items_center()
       .text_size(11.5)
       .text_color(t.dim)
-      .when(Boolean(where), (el) => el.child(div().min_w(0).truncate().child(where)))
-      .when(g.ahead > 0, (el) => el.child(div().flex_none().text_color(t.ansi2).child(`\u2191${g.ahead}`)))
-      .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
+      .child(h_flex().flex_1().min_w(0).gap(5).items_center().when(Boolean(g), (el) => el
+        .child(div().min_w(0).truncate().text_ellipsis_middle().child(g.branch ?? "detached"))
+        .when(g.ahead > 0, (el) => el.child(div().flex_none().text_color(t.ansi2).child(`\u2191${g.ahead}`)))
+        .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)))
+        .when(g.dirty, (el) => el.child(div().flex_none().text_size(8).text_color(t.ansi3).child("\u25cf")))))
+      .children(programs.map((p) => icon(p, 12, t.muted)))
+      .when(Boolean(reading), (el) => el.child(div().flex_none().text_size(11).text_color(bandColor(reading.percent) ?? t.dim).child(`${reading.percent}%`)));
   }
 
-  row({ w, i, g, tree }, t) {
+  card({ w, i, g, nested, folder, agents: mine }, t) {
     const on = w.active;
+    const head = cardHead({ space: w, repo: g?.name ?? null, folder });
+    const title = cardTitle({ space: w, agents: mine, branch: g?.branch ?? null, folder });
+    const state = this.stateSlot(cardState({ space: w, now: Date.now() }), t);
+    const programs = agentPrograms(mine);
+    const reading = highestContext(mine, this.context);
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
@@ -451,11 +491,13 @@ export default class Spaces extends View {
       .relative()
       .id(`space-${w.id}`)
       .px(8)
-      .h(rowHeight({ tree }))
+      .py(7)
+      .gap(2)
       .flex_none()
-      .justify_center()
       .rounded(8)
-      .when(on, (el) => el.bg(t.selected))
+      .when(nested, (el) => el.ml(16))
+      .tooltip(cardTooltip({ title, branch: g?.branch, folder, context: reading && describe(reading) }))
+      .when(on, (el) => el.bg(t.raised))
       .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
       .when(this.pressed === w.id && this.over !== w.id, (el) => el.opacity(0.5))
       .when(this.pressed !== null && this.over === w.id && this.pressed !== w.id, (el) => el.child(
@@ -489,13 +531,15 @@ export default class Spaces extends View {
       .on_mouse_down("right", () => this.menu(w))
       .child(
         h_flex()
-          .gap(9)
+          .gap(8)
           .items_center()
-          .when(Boolean(tree), el => el.pl(22).child(svg("mods/workspace-chrome/branch.svg").size(13).flex_none().text_color(t.dim)))
-          .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?")))
-          .child(div().flex_initial().min_w(SIDE_MIN).truncate().text_color(t.foreground).child(w.name))
-          .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1()),
-      );
+          .when(nested, el => el.child(h_flex().size(AVATAR).flex_none().items_center().justify_center().child(svg("mods/workspace-chrome/branch.svg").size(13).text_color(t.dim))))
+          .when(!nested, el => el.child(h_flex().size(AVATAR).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child(avatarLetter(head))))
+          .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.muted).child(head))
+          .when(Boolean(state), (el) => el.child(state)),
+      )
+      .child(div().max_h(2 * TITLE_LINE).overflow_hidden().line_height(`${TITLE_LINE}px`).font_semibold().text_color(t.foreground).child(title))
+      .when(Boolean(g) || programs.length > 0 || Boolean(reading), (el) => el.child(this.detailLine(g, programs, reading, t)));
   }
 
   compact({ w, i }, t) {

@@ -136,7 +136,7 @@ One card per open space, about 62px tall, three lines.
 | Line | Left | Right |
 |---|---|---|
 | 1 | Avatar letter (shipped colors) + repo name | State slot |
-| 2 | Title, up to 2 lines, then ellipsis | |
+| 2 | Title, up to 2 lines, the rest cut off | |
 | 3 | Branch, ahead, behind, dirty mark | Agent icons, context % |
 
 State slot, by the space's most urgent agent status:
@@ -151,6 +151,7 @@ State slot, by the space's most urgent agent status:
 Title, first match wins:
 
 1. The name the user typed (space or tab `named`).
+   A tab named after an agent in it does not count: the + menu names a new agent's tab after its program.
 2. The terminal title of the most recently active agent in the space, when it is "telling" by the shipped rule (not a path, address, program name, or anything containing `@`).
 3. The branch name made readable: prefix up to the last `/` dropped, dashes and underscores to spaces, first letter upper case (`feat/analyze-in-daemon` becomes "Analyze in daemon").
 4. The folder name.
@@ -197,8 +198,9 @@ Display:
 - `spaces-cards` shows the highest percentage among the space's agents on line 3.
 - Bands use the thresholds and warning colors of `~/.claude/statusline.sh` (`sev_color`): 70 to 89 orange `#ffaf00`, 90 and above red `#ff5f5f`.
   Under 70 the readout is the theme's dim where the status line is blue, so a list of readouts stays quiet until one needs attention.
-  These two fixed colors are the status line's colorblind-safe ramp and are the only non-theme colors in the mods.
+  These two fixed colors are the status line's colorblind-safe ramp and are the only non-theme colors this work adds to the mods.
 - Tooltip on the readout shows tokens used and window size when known.
+  On a card the same text is the last line of the card's own tooltip.
 - An agent with no feed file, or a file older than its terminal (`created_ms` in `terminals()`), shows no readout rather than a stale number.
 - The readout is on agent rows that have a pane; sub-agent rows under a parent and the narrow rail stay as shipped.
 - Refresh is by a gentle timer (about every 5s) only while agents exist, not by a per-frame redraw.
@@ -345,6 +347,73 @@ Never:
   It is skipped where the script or `jq` is absent.
 - 2026-11-23 (Checkpoint B review): The write-time upper bound (`written_at` not after now) stays.
   It costs one comparison and keeps the rule "between its terminal's start and now" whole; a backward clock step blanks the readout only until the next status line run.
+- 2026-11-23 (Task 5): The dirty mark is built in the clone; the shipped `spaces` mod has none, though the plan called it shipped.
+  It is one `git status --porcelain` per place inside the existing refresh, with the flags the shipped `worktree` dialog uses (`--no-optional-locks -c core.fsmonitor=false`), so the read never writes the index and cannot wake the repo's own folder watch.
+  A place now runs up to three git reads at once, so the concurrency cap went from 6 to 5 places to stay under a machine core's 16 running execs.
+  Edits that do not touch `.git` show up when a command or an agent's turn ends, or at the 60s fallback.
+- 2026-11-23 (Task 5): The title is cut after 2 lines at a word boundary, with no ellipsis.
+  This gpui-kit build has no line clamp and no way to measure text (`line_clamp` is not a function on an element), so an ellipsis on the second line cannot be placed; the tooltip carries the full title.
+  The branch uses the native `text_ellipsis_middle`, so no character budget is guessed.
+- 2026-11-23 (Task 5): Line 1 is the repo name; outside a repo it is Herdr's own name for the space, or the folder name once the space has a typed name, because that name is then the title (`cardHead`).
+  The avatar letter follows line 1.
+  A detached head is stored as no branch and shown as "detached", so title rule 3 is skipped for it.
+- 2026-11-23 (Task 5): Title rule 2 reads only the most recently active agent.
+  When that agent's title is not telling, the title falls through to the branch rather than to an older agent's title, which could describe work that is no longer current.
+- 2026-11-23 (Task 5): A repo space on `main` with no agent gets the title "Main" by rule 3, repeating line 3.
+  Left as specified; revisit if it reads badly in daily use.
+- 2026-11-23 (Task 5): The app is now 0.1.17 and its shipped `spaces` mod names a hidden bare repo (`<project>/.bare`) after its project folder; the clone, taken from 0.1.16, does not.
+  Not adopted here; the README step at Checkpoint D covers re-diffing the clones.
+- 2026-11-23 (Task 6): The state slot's times come from Herdr, not from stamps the mod keeps.
+  Working shows the time since the earliest `working_since` among the space's tabs, so the card says how long the space has been at work.
+  Idle, or no agent, shows the age of the latest `changed_at` among its tabs.
+  Herdr reports no `changed_at` for a tab in which nothing changed since the app started, and the card then shows no age rather than a guess; a space that never had an agent stays blank.
+  The agents list keeps its own stamps across restarts, so after a restart an idle agent's row can show a time while its card shows none.
+- 2026-11-23 (Task 6): Under a minute the working slot reads `<1m`, as the agents list does, and the idle slot reads `just now`.
+  Counting seconds would redraw the window every second; the cards redraw every 30s for the minute count, as the agents list does.
+  The two lists tick on their own timers, so the same time can read one minute apart for up to 30s.
+- 2026-11-23 (Task 6): Line 3 shows each agent program once, however many agents of it the space has.
+  The count of agents is the agents list's job, and one icon per agent would take the branch's room.
+- 2026-11-23 (Task 6): The card's context reading is described in the card's own tooltip, as its last line, not in a tooltip on the percentage.
+  A tooltip inside a tooltip's area could not be tried without a pointer, and one tooltip per card says everything the card shortens.
+- 2026-11-23 (Task 6): `spaces-cards` reads the feed itself on its own 5s timer, with its own copy of `context.js`.
+  The card and the agent rows can therefore differ for up to 5s after a feed changes.
+- 2026-11-23 (Task 6): Blocked, working, done and idle were captured with a real Claude Code agent in the scratch repo space, and orange and red on the card with a second agent there and temporary feeds of 75 and 95.
+  Both agents' tabs and feed files were removed afterwards.
+- 2026-11-23 (Task 7): "After all repo spaces" holds per machine: a space outside any repo follows the repos of its own machine.
+  Herdr keeps each machine's spaces together and `space.move` stays inside a machine's block, so a move across machines could never settle.
+- 2026-11-23 (Task 7): A space counts as outside a repo only when git itself said "not a git repository" for its place, or when it has no folder at all.
+  While git has not answered for one space of a machine (a new space, a `cd`, a machine that is away), nothing on that machine is moved last; worktree nesting still applies.
+  Guessing either way would shuffle spaces as the answers arrive after a start or a reload.
+- 2026-11-23 (Task 7): The rule holds against a drag too.
+  A space outside a repo dropped among the repos, or a repo space dropped below them, goes back within a moment, and the drop line is still drawn there, as it already is for a worktree space dragged away from its checkout.
+  Reordering among repo spaces, and among the spaces outside a repo, stays as dropped.
+- 2026-11-23 (Task 7): A space is where its first terminal is, as shipped, so a `cd` out of a repo in that terminal sends its card last and shifts the `ctrl-N` numbers after it.
+- 2026-11-23 (Task 7): The drawn order and the moves that make the real order match it are `visualOrder` and `plannedMoves` in `model.js`.
+  When and how often the moves run (once per change, then one retry a second while the machine's layout is ready) is the shipped code, unchanged.
+- 2026-11-23 (Task 7): Checked in the live window with a temporary space in `~`, moved by command to place 1 and to place 3: it was back in last place within 0.2s both times, and `space.select --index` 1 to 5 lit the card at that place.
+  A repo space moved among the repos stayed, a reload with the `~` space open moved nothing, and a new scratch repo space made after it landed above it.
+  The temporary spaces were closed afterwards.
+- 2026-11-23 (Checkpoint C test): The avatar letter is the first letter or digit of line 1, not its first character as shipped.
+  `.config` drew a dot in its avatar; it now draws a C (`avatarLetter` in `model.js`).
+  A name with no letter or digit, such as `~`, keeps its first character.
+- 2026-11-23 (Checkpoint C test): An agent in a tab that is not its space's selected tab stays "Done" when the space is selected.
+  Herdr counts an agent as looked at only when its own tab is shown, so the card turns to an age once that tab is opened.
+- 2026-11-23 (Checkpoint C review): Title rule 1 skips a tab whose name is the program name of an agent in it.
+  The tab bar's + menu starts an agent with `tab.new {name: <program name>}`, which marks the tab `named`, so every space started that way was titled "Claude Code".
+  The shipped agents list has the same exemption for its rows.
+  A tab the user really named like a program that runs in it is skipped too; the name is still on the tab.
+- 2026-11-23 (Checkpoint C review): Only a place that has not been looked at yet holds back "outside a repo goes last" on its machine; this narrows the Task 7 entry above.
+  A place git was asked about and could not answer for (a folder that is gone, a bare repo, a machine that is away) stays where it is among the repos and no longer blocks the others, because such a place can stay unanswered for as long as its space is open and the rule would be off the whole time.
+  The cost: when such a place later gets git's "not a repository", its space joins the end of the spaces outside a repo, which can put it after one it used to be above.
+  The decision is `standing` in `model.js`, with tests.
+- 2026-11-23 (Checkpoint C review): A place stays "not answered" until git's answer lands, not until the next look at it starts.
+  The mark was cleared when a look began, so for the length of each 60s re-ask a place git could not read counted as outside a repo and its space could be moved last and back.
+- 2026-11-23 (Checkpoint C review): The dirty mark's `git status` no longer decides whether the place has a repo.
+  It is the one read that scans the worktree; when it cannot finish, the place keeps its repo, branch and nesting from the ref reads and shows no dirty mark.
+- 2026-11-23 (Checkpoint C review): `visualOrder` marks a nested row with `nested: true`; the shipped `├─` and `└─` marks were kept by the clone but never drawn on a card.
+- 2026-11-23 (Checkpoint C review): `plannedMoves` is the shipped algorithm and is not minimal: a space that goes from first to last among N plans N - 1 moves.
+  Left as is; it happens once, when a space outside a repo is first sent last, and each later render plans none.
+  A unit test pins that the index counts places across every machine, as shipped; a live check on a remote machine is still open.
 
 ## Open questions
 

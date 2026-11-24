@@ -1,7 +1,7 @@
 # Implementation plan: Herdr card sidebar
 
 Spec: [SPEC.md](SPEC.md), approved 2026-11-22.
-Status: approved 2026-11-22, Checkpoint A shipped 2026-11-23, Checkpoint B shipped 2026-11-23, Phase 2 next.
+Status: approved 2026-11-22, Checkpoint A shipped 2026-11-23, Checkpoint B shipped 2026-11-23, Checkpoint C shipped 2026-11-24, Phase 3 next.
 Task list target: this file (the project keeps spec, plan and tasks together under `herdr-app/docs/card-sidebar/`, not in `tasks/`).
 
 ## Overview
@@ -122,7 +122,7 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
 
 ### Phase 2: Space cards
 
-- [ ] **Task 5: Three-line card with title and branch** (M)
+- [x] **Task 5: Three-line card with title and branch** (M)
   - Description: Replace the 30px row with the card: avatar and repo on line 1, title on line 2 (2 lines max), branch with middle ellipsis and the shipped ahead, behind and dirty marks on line 3, tooltip with full text, raised background when active, indented variant for nested worktree spaces.
     Title choice and `readableBranch` go in `model.js`, tests first.
     Click, right-click menu, drag reorder, machine headers and the narrow rail keep working as shipped.
@@ -133,8 +133,12 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
   - Verify: the unit test loop for `spaces-cards`; `herdr-app check herdr-app/mods/spaces-cards`; shots at 268px and 480px and in narrow rail, with a nested worktree space from the scratch repo.
   - Dependencies: Task 2.
   - Files: `mods/spaces-cards/main.js`, `mods/spaces-cards/model.js`, `mods/spaces-cards/model.test.js`.
+  - Built 2026-11-23: the dirty mark is new, not shipped, and the title is cut after 2 lines without an ellipsis; see the spec's decisions log.
+  - Carried to Checkpoint C: hover, click, right-click and drag on a card were not exercised, because nothing here can drive the pointer without a macOS Accessibility grant.
+    The tooltip's text is unit tested; whether its three lines render as three lines needs one hover.
+  - Checkpoint C review: title rule 1 no longer takes a tab the + menu named after its agent's program, and the dirty mark's `git status` can fail without blanking the place's repo and branch; see the spec's decisions log.
 
-- [ ] **Task 6: State slot, agent icons and context on the card** (M)
+- [x] **Task 6: State slot, agent icons and context on the card** (M)
   - Description: Fill line 1's right side by the space's most urgent status (pill, spinner with elapsed, done dot, age) and line 3's right side with the space's agent program icons and its highest context percentage.
     Age and elapsed formatting and "highest context" go in pure modules, tests first.
     `context.js` is a byte-for-byte copy of the one in `agents-context` (Task 4 settled that mods cannot import across folders); a test in `model.test.js` fails when the two files differ.
@@ -147,8 +151,10 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
   - Verify: unit tests; `herdr-app check`; one shot per status, produced with a real agent in the scratch repo space.
   - Dependencies: Tasks 4, 5.
   - Files: `mods/spaces-cards/main.js`, `mods/spaces-cards/model.js`, `mods/spaces-cards/model.test.js`, `mods/spaces-cards/context.js`.
+  - Built 2026-11-23: the slot's times come from Herdr's `working_since` and `changed_at`, so an idle card shows no age until something changes after an app start; each agent program is drawn once; the context reading is described in the card's own tooltip; see the spec's decisions log.
+  - Carried to Checkpoint C: the tooltip's context line is unit tested but was not hovered, and the narrow rail and 480px width were not shot again after this task.
 
-- [ ] **Task 7: Non-repo spaces last, order kept real** (S)
+- [x] **Task 7: Non-repo spaces last, order kept real** (S)
   - Description: Extend the shipped ordering so spaces outside any repo follow all repo groups, and keep the real space order equal to the visual one through the shipped `space.move` path, so `ctrl-1..9` matches the screen.
     The ordering function is pure and tested first; it must be stable so it never issues moves when nothing changed.
   - Acceptance:
@@ -158,12 +164,34 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
   - Verify: unit tests; `herdr-app ls` order compared with a shot; `herdr-app do space.select --index N` checked against the card highlighted.
   - Dependencies: Task 5.
   - Files: `mods/spaces-cards/main.js`, `mods/spaces-cards/model.js`, `mods/spaces-cards/model.test.js`.
+  - Built 2026-11-23: "last" holds per machine, a space is moved last only on git's own answer and only once git has answered for every space of its machine, and a drag across the repo boundary goes back; see the spec's decisions log.
+  - Carried to Checkpoint C: a pointer drag and a real `ctrl-N` press were not exercised (the moves and `space.select --index` were run by command), remote machines are covered by unit tests only, and the space outside any repo for end to end state 7 was closed after the check, so it is made again for the capture.
+  - Checkpoint C review: only a place not looked at yet holds the rule back (`standing` in `model.js`), a place stays unanswered until git's answer lands, and nested rows carry `nested: true`; see the spec's decisions log.
 
 ### Checkpoint C: Space cards
 
-- [ ] Test, review, ship as above.
-- [ ] Commit: `feat(herdr-app): turn space rows into cards`.
-- [ ] Spec success criteria 1 to 4 and 9 demonstrated; end to end states 1, 2, 3, 6 and 7 captured.
+- [x] Test, review, ship as above.
+- [x] Commit: `feat(herdr-app): turn space rows into cards`.
+- [x] Spec success criteria 1 to 4 and 9 demonstrated, except the hover half of criterion 3 (still carried, below); end to end states 1, 2, 3, 6 and 7 captured.
+  - Test 2026-11-23: unit tests 61 and 19 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
+    The avatar letter fix (`avatarLetter`) was made test-first during this step; see the spec's decisions log.
+  - Still carried: the card hover tooltip (the hover half of criterion 3), a pointer drag and a real `ctrl-N` press.
+    Nothing here can drive the pointer or the keyboard without a macOS Accessibility grant, so these three are checked by hand.
+    `space.select --index N`, the command `ctrl-N` is bound to, lit the card at place N for N from 1 to 5.
+  - Review 2026-11-24: a fresh `agent-skills:code-reviewer` asked for changes (2 required, 2 optional, nits); all were fixed or answered, see the "Checkpoint C review" entries in the spec's decisions log.
+    The two required fixes were reproduced in the live window before and after: the + menu's "Claude Code" title, and a space in a bare repo moved during a re-ask.
+    After the simplification pass: unit tests 75 and 19 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
+    Approved as recommended: `standing` narrows the Task 7 rule, and `plannedMoves` stays the shipped algorithm.
+    Not shown live: the `git status` failure path (it needs a 30s timeout) and anything on a remote machine.
+  - Ship 2026-11-24: fresh code review, security audit and test coverage passes found nothing critical; unit tests 75 and 19 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
+    Open from the ship passes, none fixed in this commit:
+    a space known to be outside a repo counts as inside again when a later look at it fails, so among two or more such spaces it can move above another and stay there (`standing` cannot tell "never answered no" from "answered no, last look failed");
+    the dirty mark's `git status` runs the clean filters a repo's own config names, which the ref-only reads never did;
+    that same read has the default 30s limit and holds back the redraw of every place in its pass;
+    the context read every 5s has no guard against an earlier read still running;
+    a + menu tab still titles its card "Claude Code" once its agent is gone or before it first reports.
+  - Open: in the narrow rail the blocked and done dot overlaps the space's number.
+    The rail code is identical to shipped and the spec keeps the rail as shipped, so it is left alone unless decided otherwise.
 
 ### Phase 3: Worktrees
 
@@ -212,9 +240,9 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
 | Status line process does not inherit `HC_TERMINAL_ID` | Med | Task 3 runs early; fallback keyed by session id is specified |
 | A broken save disturbs the live window this work runs inside | Med | App keeps the last good version; `herdr-app check` before relying on a save; `cmd-shift-l` cycles back to `main`; `ctrl-alt-shift-escape` as last resort |
 | `tooltip` is string-only; multi-line text may not render | Low | Fall back to `HoverCard`, which the type file provides |
-| No 2-line clamp builder in this gpui-kit build | Low | Check `gpui-kit.d.ts` first; else fixed 2-line height with hidden overflow and ellipsis on the second line |
+| No 2-line clamp builder in this gpui-kit build | Low | Check `gpui-kit.d.ts` first; else fixed 2-line height with hidden overflow; no ellipsis could be placed, see the spec's decisions log |
 | Reordering fights the user's drag or loops on `space.move` | Med | Pure, stable ordering with a "no moves when already ordered" test; reuse the shipped move path unchanged |
-| Extra git call per repo slows refresh | Low | Reuse the shipped cache, watch and 6-lookup cap; one extra call per repo, not per space |
+| Extra git call per repo slows refresh | Low | Reuse the shipped cache and watch; the lookup cap went from 6 to 5 places and the extra call is one per place, see the spec's decisions log |
 | Shipped mods change in a later Herdr release; clones do not | Low | `cloned_from` records the version; README notes how to re-diff |
 | Test files in a mod folder trigger reloads | Low | Settled in Task 2; fallback location specified |
 | End to end checks leave spaces, checkouts or agents behind | Med | Scratch repo only; cleanup is a checkpoint D item with `herdr-app ls` and `git worktree list` as proof |
