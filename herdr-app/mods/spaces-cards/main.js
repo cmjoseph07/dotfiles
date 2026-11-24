@@ -6,8 +6,9 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { spaces, machines, panes, agents, terminals, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, home, readTextFile } from "herdr";
-import { agentPrograms, avatarLetter, base, cardHead, cardState, cardTitle, cardTooltip, highestContext, plannedMoves, standing, visualOrder } from "./model.js";
+import { spaces, machines, panes, agents, terminals, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, home, readTextFile, knownAgents, checking } from "herdr";
+import { afterLook, agentPrograms, avatarLetter, cardHead, cardState, cardTitle, cardTooltip, checkout, dirtyAfter, gitInfo, highestContext, plannedMoves, standing, visualOrder } from "./model.js";
+import { Looks } from "./looks.js";
 import { bandColor, describe, feedPath, parseFeed } from "./context.js";
 
 function find(node, id) {
@@ -37,10 +38,21 @@ const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
-// Places looked at together (up to three git runs each). All at once, a few hundred
+// Places looked at together (two git runs each at a time). All at once, a few hundred
 // spaces run out of the app's open files (256 when started from the Dock on macOS) or
 // past a machine core's 16 running execs, and those spaces wait for FALLBACK.
 const AT_ONCE = 5;
+// The dirty marks are read apart from the refs, fewer at a time and each for no longer than
+// DIRTY_LIMIT: it is the one read that scans a whole worktree, and no place's repo, branch
+// or nesting waits for it. With the refs that is 12 runs at most, under a core's 16.
+const DIRTY_AT_ONCE = 2;
+const DIRTY_LIMIT = 10000;
+
+// Git as this mod asks it: never in a bare repo it was not pointed at. A folder laid out as
+// one can sit inside any clone, and reading its status would run the programs its own
+// config names (filters). A worktree of a bare repo is found through its .git file and
+// still answers; a place inside a bare repo is one git does not answer for, as before.
+const git = (args, options) => exec("git", ["-c", "safe.bareRepository=explicit", ...args], options);
 
 // Every run, finished: a place isn't done while one of its runs still holds a slot.
 async function finished(...runs) {
@@ -70,10 +82,14 @@ function icon(p, size, color) {
 
 export default class Spaces extends View {
   init(_props, cx) {
-    this.git = {}; // where() -> { name, branch (null: detached), ahead, behind, dirty, repo, linked }, null: not a repo
+    // where() -> what the place knows of its git (model.js `afterLook`): its repo's info
+    // { name, branch (null: detached), ahead, behind, dirty, repo, linked }, null: git says
+    // no repo, false: git never answered. Absent: not looked at yet.
+    this.git = {};
     this.checked = {}; // where() -> when it was last looked at
-    this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
-    this.pending = new Set(); // where()s to look at next
+    this.unsure = new Set(); // where()s whose last look could not ask git (a machine away): asked again
+    this.refs = new Looks(AT_ONCE, (key, cx) => this.check(key, cx));
+    this.marks = new Looks(DIRTY_AT_ONCE, (key) => this.checkDirty(key));
     this.busy = {}; // pane -> an agent working or a program in front of its shell
     this.ready = {}; // machine -> its layout was readable at the last look
     this.at = {}; // space -> its where() at the last look
@@ -97,29 +113,59 @@ export default class Spaces extends View {
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // Refresh only when the refs could have changed (see `due`).
     cx.timer.every(250, (cx) => this.checkNew(cx));
-    // The cards' ages and elapsed times count in minutes.
-    cx.timer.every(30000, (cx) => cx.notify());
+    // The cards' ages and elapsed times count in minutes: redrawn when one reads differently.
+    cx.timer.every(30000, (cx) => { if (this.times() !== this.drawnTimes) cx.notify(); });
     // Each Claude Code agent's context reading, by address.
     this.context = new Map();
     cx.timer.every(5000, (cx) => this.readContext(cx));
     this.readContext(cx);
+    this.menuNames = null; // the names the + menu gives its tabs, once learned (see `learnMenuNames`)
+    this.namesAsked = 0;
+  }
+
+  // The times the cards show now, as one string. The rail shows none.
+  times() {
+    const now = Date.now();
+    return narrow() ? "" : spaces().map((w) => cardState({ space: w, now }).text ?? "").join("|");
   }
 
   // Rereads the feed of every Claude Code agent; redraws only when a reading changed.
+  // One read at a time: a slow one is not overtaken by the next, whose older answer
+  // would then land last.
   readContext(cx) {
+    if (this.readingContext) return;
     const claude = agents().filter((a) => a.app === "claude-code");
     if (!claude.length && !this.context.size) return;
     const started = new Map(terminals().map((k) => [k.address, k.created_ms]));
+    this.readingContext = true;
     cx.spawn(async (cx) => {
-      const readings = await Promise.all(claude.map(async (a) => {
-        const path = feedPath(home(), a.address);
-        const text = path ? await readTextFile(path).catch(() => null) : null;
-        return [a.address, parseFeed(text, started.get(a.address), Date.now())];
-      }));
-      const next = new Map(readings.filter(([, reading]) => reading));
-      if (JSON.stringify([...next]) === JSON.stringify([...this.context])) return;
-      this.context = next;
-      cx.notify();
+      try {
+        const readings = await Promise.all(claude.map(async (a) => {
+          const path = feedPath(home(), a.address);
+          const text = path ? await readTextFile(path).catch(() => null) : null;
+          return [a.address, parseFeed(text, started.get(a.address), Date.now())];
+        }));
+        const next = new Map(readings.filter(([, reading]) => reading));
+        if (JSON.stringify([...next]) === JSON.stringify([...this.context])) return;
+        this.context = next;
+        cx.notify();
+      } finally {
+        this.readingContext = false;
+      }
+    });
+  }
+
+  // The names the + menu gives the tabs it makes: it names a new agent's tab after its
+  // program, so a tab named so was typed by nobody (model.js `cardTitle`). Asked until
+  // answered, as often as FALLBACK: the answer comes from a login shell.
+  learnMenuNames(now, cx) {
+    this.namesAsked = now;
+    if (checking()) return;
+    cx.spawn(async (cx) => {
+      try {
+        this.menuNames = new Set((await knownAgents()).map((a) => a.name));
+        cx.notify();
+      } catch {}
     });
   }
 
@@ -127,8 +173,9 @@ export default class Spaces extends View {
     const now = Date.now();
     const sp = spaces();
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
+    if (!this.menuNames && now - this.namesAsked > FALLBACK) this.learnMenuNames(now, cx);
     const due = this.due(now, sp, panes());
-    if (due.size) this.refreshGit(due, cx);
+    if (due.size) this.refs.ask(due, cx);
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
   }
 
@@ -150,7 +197,8 @@ export default class Spaces extends View {
       this.watching.delete(repo);
       pending.cancel();
     }
-    const due = new Set([...keys].filter((k) => !(k in this.git)));
+    // Not looked at yet. A look that is still running counts as begun: it is not asked for twice.
+    const due = new Set([...keys].filter((k) => !(k in this.checked)));
     for (const [id, k] of Object.entries(at)) if (this.at[id] && this.at[id] !== k && keys.has(k)) due.add(k);
     this.at = at;
     const spaceOf = {};
@@ -182,9 +230,14 @@ export default class Spaces extends View {
     return [key, ...(repo ? [...keys].filter((k) => this.git[k]?.repo === repo) : [])];
   }
 
+  // Redraws only when the machines read differently: this runs every 15s.
   refreshMachines(cx) {
+    if (checking()) return;
     cx.spawn(async cx => {
-      try { const r = await hc(["machine", "ls", "--json"]); if (r.code === 0) this.machines = (JSON.parse(r.stdout).machines ?? []).filter((m) => !m.temporary); } catch {}
+      let now = this.machines;
+      try { const r = await hc(["machine", "ls", "--json"]); if (r.code === 0) now = (JSON.parse(r.stdout).machines ?? []).filter((m) => !m.temporary); } catch {}
+      if (JSON.stringify(now) === JSON.stringify(this.machines)) return;
+      this.machines = now;
       cx.notify();
     });
   }
@@ -236,72 +289,55 @@ export default class Spaces extends View {
     });
   }
 
-  // One look at a time, each place once however often it was asked for meanwhile.
-  refreshGit(keys, cx) {
-    for (const k of keys) this.pending.add(k);
-    if (this.refreshing) return;
-    this.refreshing = true;
-    cx.spawn(async (cx) => {
-      while (this.pending.size) {
-        const keys = [...this.pending];
-        this.pending.clear();
-        let next = 0;
-        await Promise.all(Array.from({ length: Math.min(AT_ONCE, keys.length) }, async () => {
-          while (next < keys.length) await this.check(keys[next++], cx);
-        }));
-      }
-      this.refreshing = false;
-      cx.notify();
-    });
-  }
-
-  // One place's git: branch, ahead/behind, its repo.
+  // One place's git from its refs: its repo, branch, ahead/behind. Its dirty mark follows.
+  // Says whether the place now knows something else.
   async check(key, cx) {
     const [on, cwd] = JSON.parse(key);
+    const before = JSON.stringify(this.git[key]);
     this.checked[key] = Date.now();
+    let tree, found;
     try {
       // Ref-only reads avoid scanning the worktree or waking its index watch.
       // Two reads: a folder name may itself contain a newline.
-      const [r, common] = await finished(
-        exec("git", ["rev-parse", "--path-format=absolute", "--show-toplevel"], { cwd, on }),
-        exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd, on }),
-      );
-      if (r.code !== 0 || common.code !== 0) {
-        // Only git's own "no" is remembered as no repo; anything else is asked again.
-        if (!/not a git repository/i.test(r.code !== 0 ? r.stderr : common.stderr)) {
-          this.unsure.add(key);
-          this.git[key] ??= null;
-        } else this.answer(key, null);
-        return;
+      tree = checkout(...await finished(
+        git(["rev-parse", "--path-format=absolute", "--show-toplevel"], { cwd, on }),
+        git(["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd, on }),
+      ));
+      found = tree;
+      if (tree) {
+        const [branch, counts] = await finished(
+          git(["symbolic-ref", "-q", "HEAD"], { cwd, on }),
+          git(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], { cwd, on }),
+        );
+        // The mark the place showed stays until its own read says otherwise.
+        found = gitInfo({ machine: on, ...tree, branch, counts, dirty: Boolean(this.git[key]?.dirty) });
       }
-      // The repo's own .git folder names it; a worktree's top differs from it.
-      const top = r.stdout.replace(/\n$/, ""), repo = common.stdout.replace(/\n$/, "");
-      const [branch, counts, status] = await finished(
-        exec("git", ["symbolic-ref", "-q", "HEAD"], { cwd, on }),
-        exec("git", ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], { cwd, on }),
-        // The one read of the worktree, as the shipped worktree dialog asks it: without
-        // the index refresh a status would otherwise write, which would wake this repo's watch.
-        // It is also the one slow read: when it can't finish (a huge tree, the 30s limit),
-        // the place keeps its repo and branch and shows no dirty mark.
-        exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain"], { cwd, on }).catch(() => null),
-      );
-      const name = repo.endsWith("/.git") ? base(repo.slice(0, -5)) : base(repo).replace(/\.git$/, "");
-      const [ahead, behind] = counts.code === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : [0, 0];
-      const info = { name, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : null, ahead, behind, dirty: status?.code === 0 && status.stdout !== "", repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git` };
-      this.answer(key, info);
-      if (!on) this.watch(repo, cx);
     } catch {
-      // Couldn't ask (the machine is away): keep what it showed, look again later.
-      this.git[key] ??= null;
-      this.unsure.add(key);
+      // Couldn't ask (the machine is away, the folder is gone): nothing found, asked again.
+      found = undefined;
     }
+    this.git[key] = afterLook(this.git[key], found);
+    if (found === undefined) this.unsure.add(key);
+    else this.unsure.delete(key);
+    if (found) {
+      if (!on) this.watch(tree.repo, cx);
+      this.marks.ask([key], cx);
+    }
+    return JSON.stringify(this.git[key]) !== before;
   }
 
-  // Git's own word on a place. Until it lands the place stays unsure: the order reads
-  // `unsure` while a look is still running (see `ordered`).
-  answer(key, info) {
-    this.git[key] = info;
-    this.unsure.delete(key);
+  // One place's dirty mark: the one read of its worktree, as the shipped worktree dialog
+  // asks it, without the index refresh a status would otherwise write (that write would
+  // wake this repo's watch). When it can't finish in time the mark stays as it was.
+  // Says whether the mark changed.
+  async checkDirty(key) {
+    const [on, cwd] = JSON.parse(key);
+    const status = await git(["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain"], { cwd, on, timeout: DIRTY_LIMIT }).catch(() => null);
+    const g = this.git[key];
+    if (!g) return false;
+    const was = g.dirty;
+    g.dirty = dirtyAfter(was, status);
+    return g.dirty !== was;
   }
 
   watch(repo, cx) {
@@ -317,7 +353,7 @@ export default class Spaces extends View {
           const mine = JSON.stringify([null, repo]);
           const keys = Object.keys(this.git).filter((k) => this.git[k]?.repo === mine);
           if (!keys.length) break;
-          this.refreshGit(keys, cx);
+          this.refs.ask(keys, cx);
           current = watchFolder(repo);
           this.watching.set(repo, current);
         }
@@ -344,8 +380,8 @@ export default class Spaces extends View {
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
     const out = visualOrder(sp.map((w, i) => {
       const key = where(w, ps), folder = place(w, ps);
-      const known = standing({ folder, git: this.git[key], unsure: this.unsure.has(key) });
-      return { w, i, g: this.git[key] ?? null, ...known, folder, agents: ag.filter((a) => a.space === w.id) };
+      const known = standing({ folder, git: this.git[key] });
+      return { w, i, g: this.git[key] || null, ...known, folder, agents: ag.filter((a) => a.space === w.id) };
     }));
     // An attempted write can lose a sync conflict: allow the echo to settle before retrying.
     const order = sp.map(w => w.id);
@@ -447,14 +483,14 @@ export default class Spaces extends View {
 
   // Line 1's right side: the space's most urgent state, drawn as the agents list draws it.
   stateSlot({ status, text }, t) {
-    const time = text && div().text_size(11).text_color(t.dim).child(text);
     if (status === "blocked") return div().flex_none().px(6).h(18).rounded(5).bg(t.blocked + "26").text_size(10.5).font_semibold().text_color(t.blocked).flex().items_center().child("Needs you");
-    if (status === "working") return h_flex().flex_none().gap(5).items_center()
-      .child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900))
-      .when(Boolean(time), (el) => el.child(time));
     if (status === "done") return h_flex().flex_none().gap(5).items_center().text_size(11).text_color(t.done)
       .child(div().size(7).flex_none().rounded(4).bg(t.done))
       .child("Done");
+    const time = text && div().text_size(11).text_color(t.dim).child(text);
+    if (status === "working") return h_flex().flex_none().gap(5).items_center()
+      .child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900))
+      .when(Boolean(time), (el) => el.child(time));
     return time;
   }
 
@@ -479,7 +515,7 @@ export default class Spaces extends View {
   card({ w, i, g, nested, folder, agents: mine }, t) {
     const on = w.active;
     const head = cardHead({ space: w, repo: g?.name ?? null, folder });
-    const title = cardTitle({ space: w, agents: mine, branch: g?.branch ?? null, folder });
+    const title = cardTitle({ space: w, agents: mine, branch: g?.branch ?? null, folder, menuNames: this.menuNames });
     const state = this.stateSlot(cardState({ space: w, now: Date.now() }), t);
     const programs = agentPrograms(mine);
     const reading = highestContext(mine, this.context);
@@ -538,7 +574,8 @@ export default class Spaces extends View {
           .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.muted).child(head))
           .when(Boolean(state), (el) => el.child(state)),
       )
-      .child(div().max_h(2 * TITLE_LINE).overflow_hidden().line_height(`${TITLE_LINE}px`).font_semibold().text_color(t.foreground).child(title))
+      // A space with nothing to say beyond its folder's name says it once, on line 1.
+      .when(title !== head, (el) => el.child(div().max_h(2 * TITLE_LINE).overflow_hidden().line_height(`${TITLE_LINE}px`).font_semibold().text_color(t.foreground).child(title)))
       .when(Boolean(g) || programs.length > 0 || Boolean(reading), (el) => el.child(this.detailLine(g, programs, reading, t)));
   }
 
@@ -573,6 +610,7 @@ export default class Spaces extends View {
       changed = true;
     }
     if (changed) setShared("space.colors", kept);
+    this.drawnTimes = this.times();
     const list = this.grouped(t, collapsed);
     // Bring the active space into view when it, or its place in the list, changes; a row already in view stays put.
     const active = sp.find(p => p.active)?.id;

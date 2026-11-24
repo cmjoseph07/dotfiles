@@ -1,7 +1,7 @@
 # Implementation plan: Herdr card sidebar
 
 Spec: [SPEC.md](SPEC.md), approved 2026-11-22.
-Status: approved 2026-11-22, Checkpoint A shipped 2026-11-23, Checkpoint B shipped 2026-11-23, Checkpoint C shipped 2026-11-24, Phase 3 next.
+Status: approved 2026-11-22, Checkpoint A shipped 2026-11-23, Checkpoint B shipped 2026-11-23, Checkpoint C shipped 2026-11-24, its ship fixes committed 2026-11-24, Phase 3 next.
 Task list target: this file (the project keeps spec, plan and tasks together under `herdr-app/docs/card-sidebar/`, not in `tasks/`).
 
 ## Overview
@@ -184,12 +184,15 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
     Approved as recommended: `standing` narrows the Task 7 rule, and `plannedMoves` stays the shipped algorithm.
     Not shown live: the `git status` failure path (it needs a 30s timeout) and anything on a remote machine.
   - Ship 2026-11-24: fresh code review, security audit and test coverage passes found nothing critical; unit tests 75 and 19 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
-    Open from the ship passes, none fixed in this commit:
-    a space known to be outside a repo counts as inside again when a later look at it fails, so among two or more such spaces it can move above another and stay there (`standing` cannot tell "never answered no" from "answered no, last look failed");
-    the dirty mark's `git status` runs the clean filters a repo's own config names, which the ref-only reads never did;
-    that same read has the default 30s limit and holds back the redraw of every place in its pass;
-    the context read every 5s has no guard against an earlier read still running;
-    a + menu tab still titles its card "Claude Code" once its agent is gone or before it first reports.
+    What they raised went into the ship fixes below.
+  - Ship fixes 2026-11-24: each finding of the ship passes was fixed or answered, see the "Checkpoint C ship fixes" entries in the spec's decisions log.
+    Two were reproduced in the live window before the fix and gone after it: a space outside a repo that moved above another when a look at its place failed, and a card titled "Claude Code" with no agent in its + menu tab.
+    The guard against a bare repo inside a clone was checked with such a folder: its filter ran without the guard and not with it.
+    A fresh `agent-skills:code-reviewer` then read the fixes: approved, no required change, its optional findings taken.
+    Unit tests 119 and 20 passing, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
+    The two scratch spaces made for the live checks are closed and their folders removed.
+    Not shown live: the 10s limit on the dirty read, and anything on a remote machine.
+    Still open: whether a space is wrongly sent last on a cold start of the app, which needs one restart to see.
   - Open: in the narrow rail the blocked and done dot overlaps the space's number.
     The rail code is identical to shipped and the spec keeps the rail as shipped, so it is left alone unless decided otherwise.
 
@@ -225,6 +228,7 @@ Highest risk first: T2 (does the clone workflow and test layout work at all) and
 - [ ] All 12 spec success criteria checked off with evidence; all 7 end to end states captured and inspected for clipping, alignment and theme-foreign colors.
 - [ ] Scratch repo, its checkouts, its spaces and temporary feed files removed; `herdr-app ls` and `git status` are clean of test leftovers.
 - [ ] README "Layout" section describes `herdr-app/` and how to re-diff the clones against a newer shipped version (`cloned_from` in each clone).
+  The note names what a re-diff does not show: `tellingTitle` in `spaces-cards/model.js` is a hand copy of the title rule in the shipped `agents` mod, with no test tying the two.
 - [ ] Spec status set to done; this plan fully checked.
 
 ## Parallelization

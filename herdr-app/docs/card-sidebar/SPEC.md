@@ -104,6 +104,8 @@ herdr-app/
     main.js                        the view: init, refresh, render
     model.js                       pure logic, no herdr or gpui imports
     model.test.js                  node --test
+    looks.js                       the queue the git looks go through, no herdr or gpui imports
+    looks.test.js                  node --test
     context.js                     byte-for-byte copy of agents-context/context.js (plan task 6): mods cannot import across folders
     mod.json
   mods/agents-context/
@@ -131,7 +133,9 @@ Everything else under `herdr-app/` is ignored: app-written state, shipped mods a
 
 ### Space card (`spaces-cards`)
 
-One card per open space, about 62px tall, three lines.
+One card per open space, three lines, about 62px tall with a one-line title.
+A title that takes two lines makes the card taller.
+A card is shorter when its title would only repeat line 1, or when it has nothing for line 3.
 
 | Line | Left | Right |
 |---|---|---|
@@ -146,12 +150,13 @@ State slot, by the space's most urgent agent status:
 | blocked | "Needs you" pill |
 | working | spinner + elapsed since `working_since` (`3m`) |
 | done | "Done" with a dot |
-| idle, or no agent | age since last change (`just now`, `5m`, `2h`, `3d`) |
+| idle, or no agent | age since last change (`just now`, `5m`, `2h`, `3d`); blank until something changes after an app start |
 
 Title, first match wins:
 
 1. The name the user typed (space or tab `named`).
-   A tab named after an agent in it does not count: the + menu names a new agent's tab after its program.
+   A tab the + menu named does not count: the menu names a new agent's tab after its program.
+   That is a tab named after an agent in it, and any tab named exactly as the menu names one.
 2. The terminal title of the most recently active agent in the space, when it is "telling" by the shipped rule (not a path, address, program name, or anything containing `@`).
 3. The branch name made readable: prefix up to the last `/` dropped, dashes and underscores to spaces, first letter upper case (`feat/analyze-in-daemon` becomes "Analyze in daemon").
 4. The folder name.
@@ -163,11 +168,13 @@ Other rules:
 - Branch uses middle ellipsis so both ends stay readable.
 - `main` and `master` are shown, unlike shipped, because line 3 would otherwise be empty.
 - Hovering a card shows a tooltip with the full title, full branch and folder.
+- Every text a card or its tooltip draws is one plain line of at most 200 characters, whoever chose it (a program's title, a branch, a folder name).
+  A folder path longer than that keeps its end.
 - A nested worktree space is the same card, indented, with the branch glyph in place of the avatar.
 - The active space has the raised background, as in the reference image.
 - Click selects the space, right-click opens the shipped space menu, drag reorders within a machine, as shipped.
 - Machine group headers, login guidance and loading rows behave as shipped.
-- Non-repo spaces are grouped after all repo spaces, and the mod keeps the real space order equal to the visual order with `space.move`, so `ctrl-1..9` matches what is on screen.
+- Non-repo spaces are grouped after the repo spaces of their machine, and the mod keeps the real space order equal to the visual order with `space.move`, so `ctrl-1..9` matches what is on screen.
 
 ### Worktrees
 
@@ -414,6 +421,56 @@ Never:
 - 2026-11-23 (Checkpoint C review): `plannedMoves` is the shipped algorithm and is not minimal: a space that goes from first to last among N plans N - 1 moves.
   Left as is; it happens once, when a space outside a repo is first sent last, and each later render plans none.
   A unit test pins that the index counts places across every machine, as shipped; a live check on a remote machine is still open.
+- 2026-11-24 (Checkpoint C ship fixes): A look that could not ask git takes nothing back.
+  A place now knows one of four things: not looked at yet, git's own "no repo", looked at and never answered, or its repo (`afterLook` in `model.js`).
+  Before, a failed look at a place git had already called "no repo" made it count as unanswered, so its space left the spaces outside a repo, moved above another of them and stayed there.
+  Reproduced in the live window with two scratch spaces outside a repo, and gone after the fix.
+  The order reads only what git said (`standing`), so the Checkpoint C review entry about the "not answered" mark above no longer describes a rule the order depends on.
+- 2026-11-24 (Checkpoint C ship fixes): What git's output means moved out of `main.js` into `checkout`, `gitInfo` and `dirtyAfter` in `model.js`, with tests.
+  That covers "no repo" against any other failure, the repo's name, a detached head, a branch with no upstream, a worktree, and a status that failed or could not finish.
+- 2026-11-24 (Checkpoint C ship fixes): The dirty mark is read in its own queue, two places at a time, each for at most 10s.
+  It is the one read that scans a worktree, and it used to hold back the place's repo, branch and nesting, and the redraw of every place looked at with it, for up to 30s.
+  A place keeps the mark it showed until a status that ran says otherwise, so the mark does not blink on every look, or come and go on a worktree whose scan sometimes takes longer than the limit.
+  This replaces "shows no dirty mark" in the Checkpoint C review entry above: a status that cannot finish leaves the mark as it was, which is no mark for a worktree that never finishes in time.
+  With the ref reads that is 12 git runs at most at a time, where it was 15.
+  Not known: whether `exec` ends a git that ran past its limit; if it does not, a scan can outlive its slot.
+- 2026-11-24 (Checkpoint C ship fixes): The queue the looks go through is its own module, `looks.js`, with tests.
+  It redraws after each look that changed something, where the shipped loop redrew once after every pass whether or not anything had changed: a place no longer waits for the slowest one looked at beside it, and the 60s look that finds nothing new redraws nothing.
+  A look that throws costs only its own place.
+- 2026-11-24 (Checkpoint C ship fixes): A place is asked for once when it is new.
+  The shipped rule asked again on every 250ms tick until the first answer was in, so any first look slower than that ran twice.
+- 2026-11-24 (Checkpoint C ship fixes): The 15s read of the machine list redraws only when the list reads differently, and is skipped during `herdr-app check`, which used to warn that the mod ran `hc` for real.
+- 2026-11-24 (Checkpoint C ship fixes): Every git call carries `-c safe.bareRepository=explicit`.
+  A folder laid out as a bare repo can sit inside any clone, and reading its status ran the filter programs its own config names; with the setting git refuses it, checked with such a folder.
+  A worktree of a bare repo still answers, and a place inside a bare repo is one git does not answer for, as before.
+  What stays: a folder that carries its own `.git` (an unpacked archive) is trusted as the shell prompt and any agent started there already trust it, and its filters run when the dirty mark is read.
+  No git setting closes that one.
+  The alternative was to skip the dirty mark wherever the repo's own config names a filter, which costs one more git run per place and the mark in every repo that uses git-crypt or its own LFS setup; not taken.
+- 2026-11-24 (Checkpoint C ship fixes): The context feeds are read one read at a time, so a slow read cannot land after a newer one.
+- 2026-11-24 (Checkpoint C ship fixes): Title rule 1 also skips any tab named exactly as the + menu names one.
+  The names come from `knownAgents()`, asked once a minute until it answers.
+  The rule before held only while that agent was in the tab, so the card read "Claude Code" once the agent was gone and before it first reported; reproduced in the live window.
+  This replaces the last sentence of the Checkpoint C review entry on rule 1: a tab the user names exactly like a known agent is never taken as typed, whatever runs in it.
+  The names are learned once per load of the mod: an agent added to `programs.json` later is known after the next reload, and until the first answer a card can still read "Claude Code" for a moment.
+  A name with nothing to draw (only control characters) is passed over by rule 1.
+- 2026-11-24 (Checkpoint C ship fixes): A card whose title would repeat line 1 draws no title.
+  That is a space outside a repo with no agent and no typed name: its folder's name was on both lines.
+  The "Main" over `main` case of the Task 5 entry is a different pair of lines and stays.
+- 2026-11-24 (Checkpoint C ship fixes): Texts from outside go through `plain` in `model.js` before a card or tooltip draws them.
+  A title or branch with a line break could add a line to the tooltip, such as a made-up context reading.
+  A joiner inside an emoji is kept.
+- 2026-11-24 (Checkpoint C ship fixes): The 30s timer redraws only when a time on a card would read differently, and never in the narrow rail.
+- 2026-11-24 (Checkpoint C ship fixes): A fresh `agent-skills:code-reviewer` read the fixes and approved them with no required change.
+  Its optional findings were taken: the queue module and its tests, the redraws above, the mark kept on a status that cannot finish, and tests for each place `plain` is applied.
+- 2026-11-24 (Checkpoint C ship fixes): `plannedMoves` skips an id the real order does not have; it used to move the last space in its place.
+  Its one caller never passes one.
+- 2026-11-24 (Checkpoint C ship fixes): Raised by the ship passes and left as they are.
+  "Outside a repo" is read from git's English "not a git repository", as shipped: `exec` cannot set the language git answers in, the git on this computer has no translations (checked with a German locale), and no other machine is set up.
+  On a machine whose git answers in another language a space outside a repo would stay among the repos.
+  A program that moves its terminal in and out of a repo can send its space last and back; the order follows the folder, as specified.
+  The context reading can be set by any local process, by design of the feed.
+  Whether a space is wrongly sent last when the app starts before its terminal reports a folder is not known: it needs a restart of the app to see, and no fix is made on a guess.
+  The title cleaning in `model.js` is a hand copy of the rule in `agents-context/main.js` with no test tying the two, unlike `context.js`.
 
 ## Open questions
 

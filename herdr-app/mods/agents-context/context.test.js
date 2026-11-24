@@ -153,3 +153,10 @@ test("the status line writes a feed parseFeed reads, and removes it when it cann
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+// The same check as in spaces-cards/model.test.js: either suite alone catches a one-sided edit.
+test("context.js is byte for byte the copy in spaces-cards", () => {
+  const mine = readFileSync(new URL("./context.js", import.meta.url));
+  const theirs = readFileSync(new URL("../spaces-cards/context.js", import.meta.url));
+  assert.ok(mine.equals(theirs), "agents-context/context.js and spaces-cards/context.js differ: change both, they cannot import each other");
+});
