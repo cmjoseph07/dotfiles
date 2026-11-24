@@ -1,13 +1,13 @@
 # Implementation plan: Herdr clone upkeep
 
 Spec: [SPEC.md](SPEC.md), approved 2026-11-24.
-Status: approved 2026-11-24, Phase A built 2026-11-24 (Tasks 1 to 3), Checkpoint A shipped 2026-11-24, Phase B built 2026-11-24 (Tasks 3a to 10), Checkpoint B shipped 2026-11-24, Phase C next.
+Status: approved 2026-11-24, Phase A built 2026-11-24 (Tasks 1 to 3), Checkpoint A shipped 2026-11-24, Phase B built 2026-11-24 (Tasks 3a to 10), Checkpoint B shipped 2026-11-24, Task 10a added 2026-11-24 from its ship review, Task 10a built 2026-11-24, Task 11 built 2026-11-24, Task 12 built 2026-11-24, Task 12a added 2026-11-24 from its dry read, Task 12a built 2026-11-24, Checkpoint C tested 2026-11-24, Checkpoint C reviewed 2026-11-24, Checkpoint C shipped 2026-11-24; the plan is done.
 Task list target: this file (the project keeps spec, plan and tasks together under `herdr-app/docs/clone-upkeep/`, not in `tasks/`).
 
 ## Overview
 
 Take Herdr 0.1.18 into the three clones as the first run of a repeatable uptake: tracked snapshots as the merge base, `git merge-file`, a drift test that skips when Herdr has moved on, and a test that ties the cards' title rule to the agents list's.
-Three checkpoints: the drift tooling, the uptake itself, the documents.
+Three checkpoints: the drift tooling, the uptake itself, the documents with the fixes the uptake's ship review found.
 Each ends in test, review and one ship commit on `main`, not pushed.
 
 ## Architecture decisions
@@ -49,7 +49,9 @@ T5 merge 0.1.18 into agents-context ──> T6 clean follows, tying test ──>
                                                 │
                                    ── Checkpoint B (one uptake commit) ──
                                                 │
+T10a ship review's gaps closed ──> T12          │
                               T11 card sidebar documents, README ──> T12 dry read, closing sweep
+                                                                       └──> T12a the clones' own names, tested
                                                 │
                                    ── Checkpoint C ──
 ```
@@ -237,7 +239,41 @@ Task 3a comes first: it is a fix to Phase A's `drift.js` that the ship review of
 
 ### Phase C: Documents and close
 
-- [ ] **Task 11: Point the card sidebar documents here** (S)
+Task 10a comes first: it closes the gaps the ship review of Checkpoint B found, and Task 12's closing sweep checks the criteria with it in.
+
+- [x] **Task 10a: Close the ship review's gaps in `drift` and the ties** (M)
+  - Description: Found by the ship review of Checkpoint B on 2026-11-24 (code reviewer, security auditor, test engineer).
+    Nothing is wrong at 0.1.18, but two guards of the repeatable uptake are missing, and `drift` has three paths that are slow, silent or red.
+    Tests first for each item; the spec's wording and decisions log follow.
+  - Acceptance:
+    - `drift` (`upstream/drift.js`):
+      - A link to a folder inside a shipped mod folder is one entry, compared as a file and never walked into: `sources` lists one level at a time and goes down only into real folders.
+        Shown in a scratch folder, as no unit test can time it: a link to a large tree is reported in milliseconds, where today it takes seconds.
+      - A dangling link where the shipped layout file or a shipped mod folder should be is reported, not taken as absent: `exists` asks `lstatSync`, and only `isFile` follows links.
+      - A shipped file over 2 GiB is reported, never thrown: sizes are compared before any byte is read (a sparse file made by the test).
+      - A pipe on the snapshot side is reported without a read, so each half of the regular-file check fails a test when removed.
+      - The existing link, loop and permission cases pass untouched.
+    - Ties:
+      - The clone's `const clean =` line and its `.test(` `const path =` line equal the same lines of `upstream/mods/agents/main.js`: an uptake that moves the snapshots without the merge is red.
+      - `mods/agents-context/main.js` holds `mod: "agents-context"` once and `mod: "agents"` never, in a test file beside `context.test.js` (the count replaced by Task 12a).
+      - The three `cloned_from.version` values are equal.
+    - Other tests:
+      - The live tests' verdict (pass, skip with the spec's message, red on an unreadable clone file) is one function, unit tested on temporary folders, so the message and the red path are no longer proven by hand only.
+      - Three title rows for the `clean` branches with no example: `#⃣ deploy`, `✋️ Needs input`, `✋Needs`, each "after" value produced by running the shipped regex (the spec's "The shipped title rule"), not written by hand; added to the spec's title table too.
+      - `drift.test.js:47` asserts that the changed file differs from the shipped one, not that its length is kept.
+      - The no-permission cases skip when run as root, where permissions do not apply.
+    - Spec:
+      - Criterion 2 and the Prove step name a check that can fail: the clone's own changes against the new snapshot are the same lines as against the old one, or each difference is a conflict resolved by hand and named in the log.
+        Running the merge again cannot fail once the snapshot is the shipped file.
+      - The Drift test section says a link is never walked into, and the Checkpoint B review entry's "each fail when their guard is removed" holds.
+      - One decisions log entry for this task.
+    - Out of scope, accepted at the ship of Checkpoint B: a title starting with an emoji that looks like a status dot (Herdr's own 0.1.18 rule), and `RANK[s]` in `agents-context/main.js` (nothing reaches it with a word like `constructor`).
+  - Verify: the three-folder loop, with more passes than 176, 20 and 47 and no skip; each new test seen red first, or, where today's tree already passes it (the two ties, the equal versions), red in a scratch copy with the fault put in; both `herdr-app check` runs; `herdr-app status`; no `*.error` file.
+  - Dependencies: Checkpoint B.
+  - Files: `upstream/drift.js`, `upstream/drift.test.js`, `mods/spaces-cards/model.test.js`, a new test file in `mods/agents-context/`, `docs/clone-upkeep/SPEC.md`.
+  - Criteria: 1, 2, 4, 6, 8.
+
+- [x] **Task 11: Point the card sidebar documents here** (S)
   - Description: In `docs/card-sidebar/SPEC.md`, shrink "Keeping the clones current" to a pointer to this spec under the same heading, strike through open questions 3 and 4 and close them by reference, and add one dated decisions log entry.
     In the repo `README.md`, the `herdr-app/` line names `upstream/` among what is tracked and links the upkeep to this spec.
   - Acceptance:
@@ -250,38 +286,56 @@ Task 3a comes first: it is a fix to Phase A's `drift.js` that the ship review of
   - Files: `docs/card-sidebar/SPEC.md`, `../README.md`.
   - Criteria: 11.
 
-- [ ] **Task 12: Dry read of the procedure, and the closing sweep** (S)
+- [x] **Task 12: Dry read of the procedure, and the closing sweep** (S)
   - Description: A fresh agent that has seen none of this work reads only the spec's uptake procedure and walks its seven steps against 0.1.18, running the read-only commands, and lists every step it needed that is not written.
     Anything the build of Phase B did that the procedure does not say is added to that list.
     Each gap is written into the spec; then all 13 criteria are checked once more and the spec's and this plan's status lines are set.
+    From Task 11's review: the README now links the upkeep straight to this spec, so the spec's "the heading stays, so the README's link still lands" gets its true reason: the card sidebar plan and decisions log name that section.
   - Acceptance:
     - The dry read ends with no unwritten step, or with each one now in the spec.
     - After the uptake, the spec's "what Herdr changed" command prints nothing but the folder listing.
     - A table in the checkpoint report gives the proof for each of the 13 criteria.
   - Verify: the agent's list; the diff command's output; the three-folder loop, both checks, `herdr-app status`, `find herdr-app -name '*.error'`.
-  - Dependencies: Task 11.
+  - Dependencies: Tasks 10a, 11.
   - Files: `docs/clone-upkeep/SPEC.md`, `docs/clone-upkeep/plan.md`.
   - Criteria: 12, 9, 13.
 
+- [x] **Task 12a: The clones' own names, tested** (S)
+  - Description: Found by Task 12's second dry read and taken at its approval on 2026-11-24.
+    `clone.test.js` counts `mod: "agents-context"` exactly once, so a shipped overlay that opens its own mod, taken and renamed as step 3 says, turns it red for good.
+    Nothing catches a shipped mod's name left in `spaces-cards` or in the layout: only the agents sort menu has a test.
+    Tests first; the spec's wording follows.
+  - Acceptance:
+    - `agents-context/clone.test.js`: the sort menu's line (the one holding `sortMenu: true`; each such line, from the Checkpoint C review) opens `mod: "agents-context"`, and neither `mod: "agents"` nor `mods/agents/` occurs in the clone's `.js` files; no count of the clone's own name.
+    - A test in `spaces-cards`: neither `mod: "spaces"` nor `mods/spaces/` occurs in its `.js` files.
+    - `layouts/cards.json`: no block's `mod` is `spaces` or `agents`, beside the version check in `upstream/drift.test.js`, which already reads the three clones.
+    - Today's tree passes each, so each is seen red in a scratch copy with the fault put in; there, a second `mod: "agents-context"` (a taken overlay, renamed) no longer turns anything red.
+    - Spec: step 3's sentence on the count and step 7's "`clone.test.js` if its count moved" follow; the Tying test section, Project structure and Testing strategy name the new test; one decisions log entry.
+  - Verify: the three-folder loop, with more passes than 179, 23 and 63 and no skip; both `herdr-app check` runs; `herdr-app status`; no `*.error` file.
+  - Dependencies: Task 12.
+  - Files: `mods/agents-context/clone.test.js`, a new test file in `mods/spaces-cards/`, `upstream/drift.test.js`, `docs/clone-upkeep/SPEC.md`.
+  - Criteria: 1, 9.
+
 ### Checkpoint C: Documents and close
 
-- [ ] Test, review, ship as above.
-- [ ] Commit: `docs(herdr-app): point the card sidebar spec at clone upkeep`.
-- [ ] `git log origin/main..main` lists the three commits of this plan; nothing was pushed.
-- [ ] This plan fully checked.
+- [x] Test, review, ship as above.
+- [x] Commit: `fix(herdr-app): close the upkeep's test gaps, point the card sidebar spec here`.
+  One commit holds Task 10a's fixes and tests, Task 12a's tests, the spec's wording and log entries, and the documents of Tasks 11 and 12.
+- [x] `git log origin/main..main` lists the three commits of this plan; nothing was pushed.
+- [x] This plan fully checked.
 
 ## Success criteria map
 
 | Criterion | Task | Shown at |
 |---|---|---|
-| 1. Four changes in `agents-context`, `clean` line as shipped, own sort menu | 5 | Checkpoint B |
-| 2. Running the merge again gives the clone back | 8 | Checkpoint B |
+| 1. Four changes in `agents-context`, `clean` line as shipped, own sort menu | 5, 10a (tests), 12a (own names) | Checkpoints B and C |
+| 2. The clone's own changes are the same lines against the 0.1.18 snapshot as against the 0.1.16 base | 8, 10a (a check that can fail), 12 (the check sorted, over every pair) | Checkpoints B and C |
 | 3. `tellingTitle` gives the "after" column, old rows pass | 6 | Checkpoint B |
-| 4. Tying test passes, and fails on each of the three regexes | 6 (passes), 9 (fails) | Checkpoint B |
+| 4. Tying test passes, and fails on each of the three regexes | 6 (passes), 9 (fails), 10a (tied to the snapshot) | Checkpoints B and C |
 | 5. `/x/proj/.bare` is named `proj` | 7 | Checkpoint B |
-| 6. `cloned_from.version` is `0.1.18` three times | 8 | Checkpoint B |
+| 6. `cloned_from.version` is `0.1.18` three times | 8, 10a (equal, tested) | Checkpoints B and C |
 | 7. Five snapshots byte-for-byte, tracked | 3 (rules), 8 (`cmp`) | Checkpoint B |
-| 8. Drift: no skip here, skip on a changed byte, silent when absent | 1, 2, 3a, 8, 9 | Checkpoints A and B |
+| 8. Drift: no skip here, skip on a changed byte, silent when absent | 1, 2, 3a, 8, 9, 10a | Checkpoints A, B and C |
 | 9. Loop, checks, status, no `*.error` | 3, then every checkpoint | A, B, C |
 | 10. Three end to end states captured | 4 (before), 10 (after) | Checkpoint B |
 | 11. Card sidebar spec done, pointer, questions 3 and 4 closed | 11 | Checkpoint C |

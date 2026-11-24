@@ -1,35 +1,40 @@
-// Which shipped Herdr mods and layouts differ from their snapshots. No herdr or gpui-kit
-// import, so Node can test it.
+// Which shipped Herdr mods and layouts differ from their snapshots, and what the live test
+// of each does about it. No herdr or gpui-kit import, so Node can test it.
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 // Never Herdr's sources: the app writes the first two into every mod folder, and Finder
 // leaves the third in any folder it showed.
 const NOT_SHIPPED = ["gpui-kit.d.ts", "jsconfig.json", ".DS_Store"];
 
-// undefined for a path that is not there, or is below a file; a path the file system
-// refuses to look at throws.
+// stat follows a link, exists does not: a link that leads nowhere exists, and is no file.
+// A path that is not there has neither; one the file system will not look at (refused, or
+// below a file) makes exists throw, so its name differs.
 const stat = (path) => statSync(path, { throwIfNoEntry: false });
-const exists = (path) => stat(path) !== undefined;
-const isFile = (path) => stat(path)?.isFile() ?? false;
+const exists = (path) => lstatSync(path, { throwIfNoEntry: false }) !== undefined;
 
-// Whatever is not a folder counts as a file, a link included.
-const sources = (folder) =>
-  exists(folder)
-    ? readdirSync(folder, { recursive: true, withFileTypes: true })
-        .filter((entry) => !entry.isDirectory() && !NOT_SHIPPED.includes(entry.name))
-        .map((entry) => relative(folder, join(entry.parentPath, entry.name)))
-    : [];
+// Whatever is not a folder counts as a file, a link included: one level is listed at a time,
+// and only a real folder is gone down into, so a link to a folder is never walked into.
+const sources = (folder, below = "") =>
+  readdirSync(join(folder, below), { withFileTypes: true })
+    .filter((entry) => !NOT_SHIPPED.includes(entry.name))
+    .flatMap((entry) => (entry.isDirectory() ? sources(folder, join(below, entry.name)) : [join(below, entry.name)]));
 
-// Only two regular files are read: anything else where a file was (a folder, a pipe whose
-// read would wait for a writer) is a difference.
-const same = (snapshot, shipped) =>
-  isFile(snapshot) && isFile(shipped) && readFileSync(snapshot).equals(readFileSync(shipped));
+const filesIn = (folder) => (exists(folder) ? sources(folder) : []);
+
+// Only two regular files of one size are read: anything else where a file was (a folder, a
+// pipe whose read would wait for a writer) is a difference, and so is another size, which
+// spares reading a file too large to read whole.
+const same = (snapshot, shipped) => {
+  const [a, b] = [stat(snapshot), stat(shipped)];
+  if (!a?.isFile() || !b?.isFile() || a.size !== b.size) return false;
+  return readFileSync(snapshot).equals(readFileSync(shipped));
+};
 
 // Every file on either side counts, so a file a release added or dropped is a difference.
 const modDiffers = (snapshot, shipped) =>
-  [...sources(snapshot), ...sources(shipped)].some((file) => !same(join(snapshot, file), join(shipped, file)));
+  [...filesIn(snapshot), ...filesIn(shipped)].some((file) => !same(join(snapshot, file), join(shipped, file)));
 
 const layoutDiffers = (snapshot, shipped) => !same(snapshot, shipped);
 
@@ -59,3 +64,19 @@ export const drift = (snapshots, app) =>
     .filter(([, { path, differs }]) =>
       differsOrCannotBeRead(() => exists(join(app, path)) && differs(join(snapshots, path), join(app, path))))
     .map(([name]) => name);
+
+// The clone of each name, in the app folder: its cloned_from.version is the version the
+// snapshots hold.
+export const CLONE_OF = {
+  spaces: "mods/spaces-cards/mod.json",
+  agents: "mods/agents-context/mod.json",
+  main: "layouts/cards.json",
+};
+
+// What the live test of a name does: null to pass, or the message to skip with. What is
+// wrong with a clone file throws, changed or not: that is this repo's fault, never Herdr's.
+export const verdict = (snapshots, app, name) => {
+  const taken = JSON.parse(readFileSync(join(app, CLONE_OF[name]), "utf8"))?.cloned_from?.version;
+  if (typeof taken !== "string" || !/^\d+\.\d+\.\d+$/.test(taken)) throw new Error(`${CLONE_OF[name]} names no version it was cloned from`);
+  return drift(snapshots, app).includes(name) ? `${name} changed in Herdr since ${taken}: run the uptake in herdr-app/docs/clone-upkeep/SPEC.md` : null;
+};

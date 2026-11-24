@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { drift } from "./drift.js";
+import { CLONE_OF, drift, verdict } from "./drift.js";
 
 const SHIPPED = {
   "mods/spaces/main.js": "export default class Spaces {}\n",
@@ -44,7 +44,7 @@ test("drift reports nothing when every shipped file is its snapshot", (t) => {
 for (const [path, name] of Object.entries(NAME_OF)) {
   test(`drift reports ${name} alone when one byte of ${path} changed`, (t) => {
     const changed = { ...SHIPPED, [path]: SHIPPED[path].replace("o", "0") };
-    assert.equal(changed[path].length, SHIPPED[path].length);
+    assert.notEqual(changed[path], SHIPPED[path], `the change left ${path} as it was`);
     assert.deepEqual(drift(...folders(t, SHIPPED, changed)), [name]);
   });
 
@@ -136,6 +136,35 @@ for (const mod of ["spaces", "agents"]) {
   });
 }
 
+test("drift reports main when a link that leads nowhere is where the shipped layouts/main.json was", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, without(SHIPPED, "layouts/main.json"));
+  mkdirSync(join(app, "layouts"));
+  symlinkSync("gone.json", join(app, "layouts/main.json"));
+  assert.deepEqual(drift(snapshots, app), ["main"]);
+});
+
+for (const mod of ["spaces", "agents"]) {
+  test(`drift reports ${mod} when a link that leads nowhere is where its shipped folder was`, (t) => {
+    const others = Object.fromEntries(Object.entries(SHIPPED).filter(([path]) => !path.startsWith(`mods/${mod}/`)));
+    const [snapshots, app] = folders(t, SHIPPED, others);
+    symlinkSync("gone", join(app, `mods/${mod}`));
+    assert.deepEqual(drift(snapshots, app), [mod]);
+  });
+}
+
+// The file system will not look below a file: that is not a name that is absent.
+test("drift reports main when the shipped layouts folder is a file", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, without(SHIPPED, "layouts/main.json"));
+  writeFileSync(join(app, "layouts"), "{}\n");
+  assert.deepEqual(drift(snapshots, app), ["main"]);
+});
+
+test("drift reports both mods when the shipped mods folder is a file", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, { "layouts/main.json": SHIPPED["layouts/main.json"] });
+  writeFileSync(join(app, "mods"), "{}\n");
+  assert.deepEqual(drift(snapshots, app), ["spaces", "agents"]);
+});
+
 test("drift reports main when layouts/main.json is shipped as a folder", (t) => {
   const [snapshots, app] = folders(t, SHIPPED, without(SHIPPED, "layouts/main.json"));
   mkdirSync(join(app, "layouts/main.json"), { recursive: true });
@@ -148,17 +177,57 @@ test("drift reports main when the snapshot path of layouts/main.json is a folder
   assert.deepEqual(drift(snapshots, app), ["main"]);
 });
 
-// A read of a pipe waits for a writer, and nothing in this process could end that wait:
-// drift runs in a process of its own, ended if it waits.
-test("drift reports spaces without waiting when a shipped file is now a pipe", (t) => {
-  const [snapshots, app] = folders(t, SHIPPED, without(SHIPPED, "mods/spaces/main.js"));
-  execFileSync("mkfifo", [join(app, "mods/spaces/main.js")]);
+// Node reads no file over 2 GiB whole. The file is sparse: it takes no room on the disk.
+test("drift reports spaces, and does not throw, when a shipped file is over 2 GiB", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, SHIPPED);
+  truncateSync(join(app, "mods/spaces/main.js"), 2 ** 31 + 1);
+  assert.deepEqual(drift(snapshots, app), ["spaces"]);
+});
+
+// drift in a process of its own, ended if it has not answered in 5 seconds: nothing in this
+// process could end a read of a pipe, which waits for a writer, or a walk that never ends.
+const driftAlone = (snapshots, app) => {
   const script = `import { drift } from ${JSON.stringify(import.meta.resolve("./drift.js"))};
 console.log(JSON.stringify(drift(${JSON.stringify(snapshots)}, ${JSON.stringify(app)})));`;
   const run = spawnSync(process.execPath, ["--input-type=module", "--eval", script], { encoding: "utf8", timeout: 5000 });
-  assert.equal(run.signal, null, "drift waited on the pipe");
-  assert.deepEqual(JSON.parse(run.stdout), ["spaces"]);
+  assert.equal(run.signal, null, "drift did not answer in 5 seconds");
+  assert.equal(run.status, 0, run.stderr);
+  return JSON.parse(run.stdout);
+};
+
+// The other side is an empty file, so the sizes alone cannot tell it from the pipe.
+const emptied = { ...SHIPPED, "mods/spaces/main.js": "" };
+
+test("drift reports spaces without waiting when a shipped file is now a pipe", (t) => {
+  const [snapshots, app] = folders(t, emptied, without(SHIPPED, "mods/spaces/main.js"));
+  execFileSync("mkfifo", [join(app, "mods/spaces/main.js")]);
+  assert.deepEqual(driftAlone(snapshots, app), ["spaces"]);
 });
+
+test("drift reports spaces without waiting when a snapshot file is a pipe", (t) => {
+  const [snapshots, app] = folders(t, without(SHIPPED, "mods/spaces/main.js"), emptied);
+  execFileSync("mkfifo", [join(snapshots, "mods/spaces/main.js")]);
+  assert.deepEqual(driftAlone(snapshots, app), ["spaces"]);
+});
+
+// Walked into, the link would show the snapshot's files, each the same.
+test("drift reports spaces when a folder of it is now a link to a folder holding the same files", (t) => {
+  const nested = { ...SHIPPED, "mods/spaces/fonts/pixel.ttf": "font\n" };
+  const [snapshots, app] = folders(t, nested, { ...SHIPPED, "elsewhere/fonts/pixel.ttf": "font\n" });
+  symlinkSync("../../elsewhere/fonts", join(app, "mods/spaces/fonts"));
+  assert.deepEqual(drift(snapshots, app), ["spaces"]);
+});
+
+// Walked into, two links back to their own folder hold a folder twice at every depth.
+test("drift reports spaces without walking into a link to a folder", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, SHIPPED);
+  symlinkSync(".", join(app, "mods/spaces/a"));
+  symlinkSync(".", join(app, "mods/spaces/b"));
+  assert.deepEqual(driftAlone(snapshots, app), ["spaces"]);
+});
+
+// Root reads and searches whatever the permissions say: the refusals below never reach it.
+const refusable = { skip: process.getuid?.() === 0 && "run as root, which no permission refuses" };
 
 for (const mod of ["spaces", "agents"]) {
   test(`drift reports ${mod} when one of its shipped files is now a link that leads back to itself`, (t) => {
@@ -167,13 +236,13 @@ for (const mod of ["spaces", "agents"]) {
     assert.deepEqual(drift(snapshots, app), [mod]);
   });
 
-  test(`drift reports ${mod} when one of its shipped files cannot be read`, (t) => {
+  test(`drift reports ${mod} when one of its shipped files cannot be read`, refusable, (t) => {
     const [snapshots, app] = folders(t, SHIPPED, SHIPPED);
     chmodSync(join(app, `mods/${mod}/main.js`), 0o000);
     assert.deepEqual(drift(snapshots, app), [mod]);
   });
 
-  test(`drift reports ${mod} when a folder below its shipped folder cannot be read`, (t) => {
+  test(`drift reports ${mod} when a folder below its shipped folder cannot be read`, refusable, (t) => {
     const nested = { ...SHIPPED, [`mods/${mod}/fonts/pixel.ttf`]: "font\n" };
     const [snapshots, app] = folders(t, nested, nested);
     const fonts = join(app, `mods/${mod}/fonts`);
@@ -186,13 +255,13 @@ for (const mod of ["spaces", "agents"]) {
   });
 }
 
-test("drift reports main when the shipped layouts/main.json cannot be read", (t) => {
+test("drift reports main when the shipped layouts/main.json cannot be read", refusable, (t) => {
   const [snapshots, app] = folders(t, SHIPPED, SHIPPED);
   chmodSync(join(app, "layouts/main.json"), 0o000);
   assert.deepEqual(drift(snapshots, app), ["main"]);
 });
 
-test("drift reports both mods when the shipped mods folder cannot be searched", (t) => {
+test("drift reports both mods when the shipped mods folder cannot be searched", refusable, (t) => {
   const [snapshots, app] = folders(t, SHIPPED, SHIPPED);
   const mods = join(app, "mods");
   chmodSync(mods, 0o000);
@@ -208,19 +277,77 @@ test("drift throws an error that is not the file system's: a fault in it is neve
   assert.throws(() => drift(undefined, app), { code: "ERR_INVALID_ARG_TYPE" });
 });
 
+// The clones in the app folder, each naming another version: each name reads its own.
+const cloneOf = (name, version) => `${JSON.stringify({ place: "none", cloned_from: { name, version } })}\n`;
+const CLONES = {
+  "mods/spaces-cards/mod.json": cloneOf("spaces", "0.1.18"),
+  "mods/agents-context/mod.json": cloneOf("agents", "0.1.17"),
+  "layouts/cards.json": cloneOf("main", "0.1.16"),
+};
+
+test("verdict passes every name whose shipped files are their snapshots", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, { ...SHIPPED, ...CLONES });
+  for (const name of ["spaces", "agents", "main"]) assert.equal(verdict(snapshots, app, name), null, name);
+});
+
+test("verdict skips a changed name with the message that names it, its clone's version and the uptake", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, { ...SHIPPED, ...CLONES, "mods/agents/main.js": "changed\n", "layouts/main.json": "changed\n" });
+  assert.equal(verdict(snapshots, app, "spaces"), null);
+  assert.equal(verdict(snapshots, app, "agents"), "agents changed in Herdr since 0.1.17: run the uptake in herdr-app/docs/clone-upkeep/SPEC.md");
+  assert.equal(verdict(snapshots, app, "main"), "main changed in Herdr since 0.1.16: run the uptake in herdr-app/docs/clone-upkeep/SPEC.md");
+});
+
+test("verdict passes every name whose shipped files are absent", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, CLONES);
+  for (const name of ["spaces", "agents", "main"]) assert.equal(verdict(snapshots, app, name), null, name);
+});
+
+// A clone file is this repo's, never Herdr's: what is wrong with one is red, changed or not.
+for (const [what, clone, error] of [
+  ["is gone", undefined, { code: "ENOENT" }],
+  ["is not JSON", "{\n", SyntaxError],
+  ["names no version it was cloned from", '{ "place": "none" }\n', /names no version/],
+  ["names a version that is not a string", cloneOf("agents", ["0.1.17"]), /names no version/],
+  ["names a version that is not one", cloneOf("agents", "latest"), /names no version/],
+]) {
+  test(`verdict throws when the clone file of a name ${what}, whether or not the name changed`, (t) => {
+    const clones = clone === undefined ? without(CLONES, "mods/agents-context/mod.json") : { ...CLONES, "mods/agents-context/mod.json": clone };
+    for (const shipped of [SHIPPED, { ...SHIPPED, "mods/agents/main.js": "changed\n" }]) {
+      const [snapshots, app] = folders(t, SHIPPED, { ...shipped, ...clones });
+      assert.throws(() => verdict(snapshots, app, "agents"), error);
+    }
+  });
+}
+
+test("verdict throws when the clone file of a name cannot be read", refusable, (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, { ...SHIPPED, ...CLONES });
+  chmodSync(join(app, "mods/agents-context/mod.json"), 0o000);
+  assert.throws(() => verdict(snapshots, app, "agents"), { code: "EACCES" });
+});
+
 // The real folders: this file sits in the snapshot folder, inside the app folder.
 const SNAPSHOTS = import.meta.dirname;
 const APP = join(SNAPSHOTS, "..");
-const CLONE_OF = {
-  spaces: "mods/spaces-cards/mod.json",
-  agents: "mods/agents-context/mod.json",
-  main: "layouts/cards.json",
-};
 
-for (const [name, clone] of Object.entries(CLONE_OF)) {
+test("the three clones name one version: an uptake moves all three together", () => {
+  const taken = Object.values(CLONE_OF).map((clone) => ({ clone, version: JSON.parse(readFileSync(join(APP, clone), "utf8")).cloned_from.version }));
+  const named = taken.map(({ clone, version }) => `${clone} ${version}`).join(", ");
+  assert.equal(new Set(taken.map(({ version }) => version)).size, 1, `the clones name more than one version: ${named}`);
+});
+
+// Every mod a layout names, at any depth: its blocks, floating blocks and pane headers.
+const modsIn = (node) =>
+  node !== null && typeof node === "object" ? Object.entries(node).flatMap(([key, value]) => (key === "mod" ? [value] : modsIn(value))) : [];
+
+// A block carried by hand from the shipped layout names the clone, never the shipped mod.
+test("the cards layout never opens the shipped mods the clones stand in for", () => {
+  const named = modsIn(JSON.parse(readFileSync(join(APP, CLONE_OF.main), "utf8")));
+  assert.deepEqual(named.filter((mod) => mod === "spaces" || mod === "agents"), []);
+});
+
+for (const name of Object.keys(CLONE_OF)) {
   test(`shipped ${name} is the version taken`, (t) => {
-    const taken = JSON.parse(readFileSync(join(APP, clone), "utf8")).cloned_from.version;
-    assert.match(taken, /^\d+\.\d+\.\d+$/);
-    if (drift(SNAPSHOTS, APP).includes(name)) t.skip(`${name} changed in Herdr since ${taken}: run the uptake in herdr-app/docs/clone-upkeep/SPEC.md`);
+    const skip = verdict(SNAPSHOTS, APP, name);
+    if (skip) t.skip(skip);
   });
 }

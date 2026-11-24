@@ -45,8 +45,8 @@ Windows is covered via WSL2; WezTerm on native Windows falls back to PowerShell.
 - `atuin/` - shell history settings: compact inline UI, background daemon (autostarts on demand); the history db and sync key stay in `~/.local/share/atuin`
 - `fish/` - shell config, see [fish/README.md](fish/README.md)
 - `git/` - identity, behavior defaults, and global ignore, at git's XDG default paths so no absolute paths are needed
-- `herdr-app/` - Herdr desktop app: only the personal `cards` layout, its two cloned sidebar mods, `settings.json`, and `docs/` are tracked; shipped layouts, mods, type files, and app state are rewritten by the app
-  - The clones do not follow Herdr updates; the [spec](herdr-app/docs/card-sidebar/SPEC.md) covers the design and [how to re-diff them](herdr-app/docs/card-sidebar/SPEC.md#keeping-the-clones-current) against a newer release
+- `herdr-app/` - Herdr desktop app: only the personal `cards` layout, its two cloned sidebar mods, `upstream/` (the shipped files the clones last took), `settings.json`, and `docs/` are tracked; shipped layouts, mods, type files, and app state are rewritten by the app
+  - The clones do not follow Herdr updates; the [card sidebar spec](herdr-app/docs/card-sidebar/SPEC.md) covers the design and the [clone upkeep spec](herdr-app/docs/clone-upkeep/SPEC.md) how to take a newer release into them
 - `mise/` - global tool versions (node lts, neovim stable); mise provisions these, so `bootstrap.fish` does not list them as system packages
 - `wezterm/` - terminal config, platform-aware
 - `bootstrap.fish` - new machine setup

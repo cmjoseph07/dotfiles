@@ -92,6 +92,8 @@ for (const [title, telling] of [
   ["· 🔴 login", "🔴 login"],
   ["🇩🇪 release", "🇩🇪 release"],
   ["🚀", "🚀"],
+  ["#⃣ deploy", "#⃣ deploy"],
+  ["✋Needs", "✋Needs"],
 ]) {
   test(`tellingTitle keeps the emoji a title starts with, as the agents list does: "${title}"`, () => {
     assert.equal(tellingTitle(agent(title)), telling);
@@ -100,6 +102,7 @@ for (const [title, telling] of [
 
 for (const [title, telling] of [
   ["✋ Needs input", "Needs input"],
+  ["✋️ Needs input", "Needs input"],
   ["⏳ Waiting on CI", "Waiting on CI"],
 ]) {
   test(`tellingTitle drops a status mark that is an emoji: "${title}"`, () => {

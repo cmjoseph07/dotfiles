@@ -124,28 +124,8 @@ Everything else under `herdr-app/` is ignored: app-written state, shipped mods a
 ## Keeping the clones current
 
 Herdr replaces its own layouts and mods on every update and never updates a clone, so a clone keeps the code of the version it was made from.
-Each clone records that version as `cloned_from` (in its `mod.json`, or at the top of the layout file).
-
-Re-diff after an update, when `herdr-app --version` is newer than a clone's `cloned_from.version`.
-Commit `9a7be8c` holds the clones as first made from 0.1.16, so comparing it with the shipped files shows what Herdr changed since.
-Run from `~/.config`:
-
-```sh
-git show 9a7be8c:herdr-app/mods/spaces-cards/main.js | diff - herdr-app/mods/spaces/main.js
-bash -c 'diff <(git show 9a7be8c:herdr-app/mods/spaces-cards/mod.json | jq -S .) <(jq -S . herdr-app/mods/spaces/mod.json)'
-git show 9a7be8c:herdr-app/mods/agents-context/main.js | diff - herdr-app/mods/agents/main.js
-bash -c 'diff <(git show 9a7be8c:herdr-app/mods/agents-context/mod.json | jq -S .) <(jq -S . herdr-app/mods/agents/mod.json)'
-bash -c 'diff <(git show 9a7be8c:herdr-app/layouts/cards.json | jq -S .) <(jq -S . herdr-app/layouts/main.json)'
-ls herdr-app/mods/spaces herdr-app/mods/agents
-```
-
-Not Herdr's changes: a clone's own name where the shipped file has `spaces` or `agents`, the `cloned_from` block, and in the layout the 3 / 2 weights.
-The `ls` shows a file a release added to a shipped mod: today each holds `main.js` and `mod.json` beside the type files the app writes (`gpui-kit.d.ts`, `jsconfig.json`).
-Take the rest into the clone by hand, set its `cloned_from.version` to the version taken, then run the unit tests and `herdr-app check` from the Commands section.
-The comparison always starts at 0.1.16, so it lists changes already taken as well.
-
-A re-diff does not show one thing: `tellingTitle` in `mods/spaces-cards/model.js` is a hand copy of the title rule in the shipped `agents` mod (`clean` and the `telling` test in `mods/agents/main.js`), and no test ties the two.
-A change to that rule shows in the `agents` comparison only, so carry it to `model.js` as well.
+How the clones take a newer release is in the [clone upkeep spec](../clone-upkeep/SPEC.md#the-uptake-procedure): snapshots of the shipped files under `herdr-app/upstream/` as the merge base, a drift test that skips when Herdr has moved on, and a test that ties `tellingTitle` to the agents list's title rule.
+`herdr-app/upstream/` is tracked beside the folders listed above.
 
 ## Behavior
 
@@ -633,6 +613,9 @@ All 12 were checked off on 2026-11-24; the evidence for each is under Checkpoint
   The re-diff steps first written into the README's Layout section are now under Keeping the clones current.
 - 2026-11-24 (Checkpoint D ship): Fresh code review, security audit and test passes read the closing change and found nothing critical or required.
   Taken from them: the layout comparison writes no temp file, the re-diff also compares each `mod.json` and lists the shipped mod folders, and what is left open is listed under Open questions.
+- 2026-11-24 (clone upkeep): Keeping the clones current is now a pointer to the [clone upkeep spec](../clone-upkeep/SPEC.md), which took Herdr 0.1.18 into the clones.
+  Its tracked snapshots replace the re-diff from commit `9a7be8c`, so the commands that stood here are gone, and the note that no test ties `tellingTitle` to the agents list went with them.
+  Open questions 3 and 4 are closed by it; this spec stays done.
 
 ## Open questions
 
@@ -640,9 +623,9 @@ All 12 were checked off on 2026-11-24; the evidence for each is under Checkpoint
    Settled 2026-11-23 in plan task 3: it is inherited, see the decisions log.
 2. ~~**Unit test files inside mod folders.**~~
    Settled 2026-11-22 in plan task 2: they stay in the mod folders, see the decisions log.
-3. **Take Herdr's 0.1.18 changes into the clones.**
-   Open since 2026-11-24: the changes are listed in the decisions log (Checkpoint D closing), and the `clean` change leaves `tellingTitle` behind the shipped agents list on a title that starts with an emoji.
-4. **A test tying `tellingTitle` to the agents list's title rule.**
-   Open since 2026-11-24: a test in `spaces-cards` can read the `clean` rule out of `agents-context/main.js` as text and run one table of titles through both, so a re-diff that changes one and not the other fails.
+3. ~~**Take Herdr's 0.1.18 changes into the clones.**~~
+   Settled 2026-11-24 in the [clone upkeep spec](../clone-upkeep/SPEC.md#the-first-run-0116-to-0118): the four `agents` changes and the hidden bare repo name are taken, the avatar and tail changes are skipped, and `tellingTitle` keeps a leading emoji as the agents list does.
+4. ~~**A test tying `tellingTitle` to the agents list's title rule.**~~
+   Settled 2026-11-24 in the [clone upkeep spec](../clone-upkeep/SPEC.md#tying-test): `model.test.js` compares the three regexes `model.js` copies with the literals in `agents-context/main.js`, and `clone.test.js` ties those lines to the `agents` snapshot.
 5. **Hand checks.**
    Open since 2026-11-24: the pointer and key checks and the cold start check listed under Checkpoint D in [plan.md](plan.md) need a person at the window.
