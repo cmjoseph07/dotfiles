@@ -1,7 +1,7 @@
 # Implementation plan: Herdr clone upkeep
 
 Spec: [SPEC.md](SPEC.md), approved 2026-11-24.
-Status: approved 2026-11-24, Phase A built 2026-11-24 (Tasks 1 to 3), Checkpoint A shipped 2026-11-24, Phase B built 2026-11-24 (Tasks 3a to 10), Checkpoint B shipped 2026-11-24, Task 10a added 2026-11-24 from its ship review, Task 10a built 2026-11-24, Task 11 built 2026-11-24, Task 12 built 2026-11-24, Task 12a added 2026-11-24 from its dry read, Task 12a built 2026-11-24, Checkpoint C tested 2026-11-24, Checkpoint C reviewed 2026-11-24, Checkpoint C shipped 2026-11-24; the plan is done.
+Status: approved 2026-11-24, Phase A built 2026-11-24 (Tasks 1 to 3), Checkpoint A shipped 2026-11-24, Phase B built 2026-11-24 (Tasks 3a to 10), Checkpoint B shipped 2026-11-24, Task 10a added 2026-11-24 from its ship review, Task 10a built 2026-11-24, Task 11 built 2026-11-24, Task 12 built 2026-11-24, Task 12a added 2026-11-24 from its dry read, Task 12a built 2026-11-24, Checkpoint C tested 2026-11-24, Checkpoint C reviewed 2026-11-24, Checkpoint C shipped 2026-11-24, its ship fixes made 2026-11-24, their ship 2026-11-24; the plan is done.
 Task list target: this file (the project keeps spec, plan and tasks together under `herdr-app/docs/clone-upkeep/`, not in `tasks/`).
 
 ## Overview
@@ -249,7 +249,7 @@ Task 10a comes first: it closes the gaps the ship review of Checkpoint B found, 
     - `drift` (`upstream/drift.js`):
       - A link to a folder inside a shipped mod folder is one entry, compared as a file and never walked into: `sources` lists one level at a time and goes down only into real folders.
         Shown in a scratch folder, as no unit test can time it: a link to a large tree is reported in milliseconds, where today it takes seconds.
-      - A dangling link where the shipped layout file or a shipped mod folder should be is reported, not taken as absent: `exists` asks `lstatSync`, and only `isFile` follows links.
+      - A dangling link where the shipped layout file or a shipped mod folder should be is reported, not taken as absent: `exists` asks `lstatSync`, and only the file compare's `statSync` follows links.
       - A shipped file over 2 GiB is reported, never thrown: sizes are compared before any byte is read (a sparse file made by the test).
       - A pipe on the snapshot side is reported without a read, so each half of the regular-file check fails a test when removed.
       - The existing link, loop and permission cases pass untouched.
@@ -319,9 +319,17 @@ Task 10a comes first: it closes the gaps the ship review of Checkpoint B found, 
 ### Checkpoint C: Documents and close
 
 - [x] Test, review, ship as above.
+  - Ship 2026-11-24: fresh code review, security audit and test coverage passes found nothing critical or high; unit tests 181, 25 and 67 passing with no skip, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
+    What they raised went into the ship fixes below.
+  - Ship fixes 2026-11-24: each finding of the ship passes was fixed or answered, see the "Checkpoint C ship fixes" entry in the spec's decisions log.
+    Unit tests 182, 26 and 76 passing with no skip; each new test the tree already passes was seen red in a scratch copy with its fault put in.
+    The capture's staging and removal were run against the live window.
+  - Ship of the fixes 2026-11-24: fresh code review, security audit and test coverage passes found nothing critical or high; unit tests 182, 26 and 76 passing with no skip, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
 - [x] Commit: `fix(herdr-app): close the upkeep's test gaps, point the card sidebar spec here`.
   One commit holds Task 10a's fixes and tests, Task 12a's tests, the spec's wording and log entries, and the documents of Tasks 11 and 12.
-- [x] `git log origin/main..main` lists the three commits of this plan; nothing was pushed.
+- [x] Commit: `fix(herdr-app): close the upkeep's ship review findings`.
+  One commit holds the ship fixes: `drift.js` and its tests, both `clone.test.js` files, the spec's wording and its "Checkpoint C ship fixes" entry, the card sidebar spec's shot path and the README line.
+- [x] `git log origin/main..main` lists the four commits of this plan; nothing was pushed.
 - [x] This plan fully checked.
 
 ## Success criteria map

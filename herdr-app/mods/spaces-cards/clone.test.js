@@ -1,17 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // This mod is the shipped spaces sidebar with its own changes, carried by hand at each
 // uptake. Taken code names this mod where Herdr's names the shipped one, in every file the
 // mod runs: a shipped name left in opens or reads the shipped sidebar, and nothing else
-// says so. Its tests are left out: they may read a snapshot, under the shipped name.
-const code = readdirSync(new URL(".", import.meta.url), { recursive: true })
+// says so. Its tests are left out: they may read a snapshot, under the shipped name. The
+// folder is listed one level at a time and only its real folders are gone down into, as
+// drift does: a link is a name, never walked into.
+const below = (folder, path = "") =>
+  readdirSync(join(folder, path), { withFileTypes: true })
+    .flatMap((entry) => (entry.isDirectory() ? below(folder, join(path, entry.name)) : [join(path, entry.name)]));
+const code = below(import.meta.dirname)
   .filter((file) => file.endsWith(".js") && !file.endsWith(".test.js"))
-  .map((file) => ({ file, text: readFileSync(new URL(file, import.meta.url), "utf8") }));
+  .map((file) => ({ file, text: readFileSync(join(import.meta.dirname, file), "utf8") }));
 
-for (const shipped of ['mod: "spaces"', "mods/spaces/"]) {
+// The checks below pass on a scan that read nothing: this one shows it read the mod.
+test("the scan reads main.js, the file this mod runs", () => {
+  assert.ok(code.some(({ file }) => file === "main.js"), `the scan read ${code.length} files, not main.js`);
+});
+
+for (const shipped of [/mod:\s*["']spaces["']/, /mods\/spaces\//]) {
   test(`no file this mod runs names the shipped spaces sidebar: ${shipped}`, () => {
-    assert.deepEqual(code.filter(({ text }) => text.includes(shipped)).map(({ file }) => file), []);
+    assert.deepEqual(code.filter(({ text }) => shipped.test(text)).map(({ file }) => file), []);
   });
 }

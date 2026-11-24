@@ -21,6 +21,10 @@ const NAME_OF = {
   "layouts/main.json": "main",
 };
 const without = (files, path) => Object.fromEntries(Object.entries(files).filter(([p]) => p !== path));
+const withoutMod = (files, mod) => Object.fromEntries(Object.entries(files).filter(([path]) => !path.startsWith(`mods/${mod}/`)));
+// The files of one mod moved to elsewhere/<mod>, for a link where its folder was to lead to.
+const movedAway = (files, mod) =>
+  Object.fromEntries(Object.entries(files).map(([path, text]) => [path.startsWith(`mods/${mod}/`) ? path.replace("mods/", "elsewhere/") : path, text]));
 
 // A snapshot folder and an app folder holding the given files, removed when the test ends.
 const folders = (t, snapshotFiles, appFiles) => {
@@ -45,6 +49,8 @@ for (const [path, name] of Object.entries(NAME_OF)) {
   test(`drift reports ${name} alone when one byte of ${path} changed`, (t) => {
     const changed = { ...SHIPPED, [path]: SHIPPED[path].replace("o", "0") };
     assert.notEqual(changed[path], SHIPPED[path], `the change left ${path} as it was`);
+    // Sizes are compared first: only a change of one size reaches the bytes.
+    assert.equal(changed[path].length, SHIPPED[path].length, `the change moved the size of ${path}, so no byte is compared`);
     assert.deepEqual(drift(...folders(t, SHIPPED, changed)), [name]);
   });
 
@@ -117,6 +123,12 @@ test("drift reports nothing for a shipped mod or layout that is absent, and stil
   assert.deepEqual(drift(...folders(t, SHIPPED, onlyAgents)), ["agents"]);
 });
 
+// No snapshot yet is a state, not a refusal: with no shipped file to compare, nothing differs.
+test("drift reports nothing for a mod with no snapshot folder whose shipped folder holds only files the app writes", (t) => {
+  const written = { ...withoutMod(SHIPPED, "spaces"), "mods/spaces/gpui-kit.d.ts": "declare module 'gpui-kit';\n" };
+  assert.deepEqual(drift(...folders(t, withoutMod(SHIPPED, "spaces"), written)), []);
+});
+
 for (const mod of ["spaces", "agents"]) {
   test(`drift reports ${mod} when a snapshot file's shipped path is now a folder`, (t) => {
     const folder = { ...without(SHIPPED, `mods/${mod}/mod.json`), [`mods/${mod}/mod.json/part.json`]: "{}\n" };
@@ -145,9 +157,21 @@ test("drift reports main when a link that leads nowhere is where the shipped lay
 
 for (const mod of ["spaces", "agents"]) {
   test(`drift reports ${mod} when a link that leads nowhere is where its shipped folder was`, (t) => {
-    const others = Object.fromEntries(Object.entries(SHIPPED).filter(([path]) => !path.startsWith(`mods/${mod}/`)));
-    const [snapshots, app] = folders(t, SHIPPED, others);
+    const [snapshots, app] = folders(t, SHIPPED, withoutMod(SHIPPED, mod));
     symlinkSync("gone", join(app, `mods/${mod}`));
+    assert.deepEqual(drift(snapshots, app), [mod]);
+  });
+
+  // Walked into, the link would show the snapshot's files, each the same.
+  test(`drift reports ${mod} when its shipped folder is a link to a folder holding the same files`, (t) => {
+    const [snapshots, app] = folders(t, SHIPPED, movedAway(SHIPPED, mod));
+    symlinkSync(`../elsewhere/${mod}`, join(app, `mods/${mod}`));
+    assert.deepEqual(drift(snapshots, app), [mod]);
+  });
+
+  test(`drift reports ${mod} when its snapshot folder is a link to a folder holding the same files`, (t) => {
+    const [snapshots, app] = folders(t, movedAway(SHIPPED, mod), SHIPPED);
+    symlinkSync(`../elsewhere/${mod}`, join(snapshots, `mods/${mod}`));
     assert.deepEqual(drift(snapshots, app), [mod]);
   });
 }
@@ -223,6 +247,17 @@ test("drift reports spaces without walking into a link to a folder", (t) => {
   const [snapshots, app] = folders(t, SHIPPED, SHIPPED);
   symlinkSync(".", join(app, "mods/spaces/a"));
   symlinkSync(".", join(app, "mods/spaces/b"));
+  assert.deepEqual(driftAlone(snapshots, app), ["spaces"]);
+});
+
+// A loop ends at the file system's limit on links in one path, and a link listed as a file is
+// reported however it is walked: neither shows a walk that lists a link, then goes into it.
+// 25 folders in a chain, each with two links to the next, hold 2^24 paths and no loop.
+test("drift reports spaces without walking into links to folders that branch and never loop", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, SHIPPED);
+  for (let i = 0; i < 25; i++) mkdirSync(join(app, `elsewhere/d${i}`), { recursive: true });
+  for (let i = 0; i < 24; i++) for (const link of ["a", "b"]) symlinkSync(`../d${i + 1}`, join(app, `elsewhere/d${i}/${link}`));
+  symlinkSync("../../elsewhere/d0", join(app, "mods/spaces/deep"));
   assert.deepEqual(driftAlone(snapshots, app), ["spaces"]);
 });
 
@@ -309,6 +344,8 @@ for (const [what, clone, error] of [
   ["names no version it was cloned from", '{ "place": "none" }\n', /names no version/],
   ["names a version that is not a string", cloneOf("agents", ["0.1.17"]), /names no version/],
   ["names a version that is not one", cloneOf("agents", "latest"), /names no version/],
+  ["names a version with something before its three numbers", cloneOf("agents", "v0.1.17"), /names no version/],
+  ["names a version with something after its three numbers", cloneOf("agents", "0.1.17-rc1"), /names no version/],
 ]) {
   test(`verdict throws when the clone file of a name ${what}, whether or not the name changed`, (t) => {
     const clones = clone === undefined ? without(CLONES, "mods/agents-context/mod.json") : { ...CLONES, "mods/agents-context/mod.json": clone };
@@ -343,6 +380,12 @@ const modsIn = (node) =>
 test("the cards layout never opens the shipped mods the clones stand in for", () => {
   const named = modsIn(JSON.parse(readFileSync(join(APP, CLONE_OF.main), "utf8")));
   assert.deepEqual(named.filter((mod) => mod === "spaces" || mod === "agents"), []);
+});
+
+// The check above passes on a layout it read nothing from: this one shows it read the blocks.
+test("the cards layout opens both clones", () => {
+  const named = modsIn(JSON.parse(readFileSync(join(APP, CLONE_OF.main), "utf8")));
+  for (const clone of ["spaces-cards", "agents-context"]) assert.ok(named.includes(clone), `the cards layout opens no ${clone}`);
 });
 
 for (const name of Object.keys(CLONE_OF)) {

@@ -8,11 +8,13 @@ import { join } from "node:path";
 // leaves the third in any folder it showed.
 const NOT_SHIPPED = ["gpui-kit.d.ts", "jsconfig.json", ".DS_Store"];
 
-// stat follows a link, exists does not: a link that leads nowhere exists, and is no file.
-// A path that is not there has neither; one the file system will not look at (refused, or
-// below a file) makes exists throw, so its name differs.
+// stat follows a link, lstat does not: a link that leads nowhere has an lstat, and is no file.
+// A path that is not there has neither. A path the file system refuses makes lstat throw, and
+// so does a path below a file, which Node's statSync answers with undefined (its quirk with
+// ENOTDIR): either way its name differs.
 const stat = (path) => statSync(path, { throwIfNoEntry: false });
-const exists = (path) => lstatSync(path, { throwIfNoEntry: false }) !== undefined;
+const lstat = (path) => lstatSync(path, { throwIfNoEntry: false });
+const exists = (path) => lstat(path) !== undefined;
 
 // Whatever is not a folder counts as a file, a link included: one level is listed at a time,
 // and only a real folder is gone down into, so a link to a folder is never walked into.
@@ -21,7 +23,14 @@ const sources = (folder, below = "") =>
     .filter((entry) => !NOT_SHIPPED.includes(entry.name))
     .flatMap((entry) => (entry.isDirectory() ? sources(folder, join(below, entry.name)) : [join(below, entry.name)]));
 
-const filesIn = (folder) => (exists(folder) ? sources(folder) : []);
+// A mod folder is listed only when it is a real folder. Anything else there, a link to a
+// folder included, is one entry: the folder itself, compared as a file, so it differs. A
+// folder that is not there lists nothing: no snapshot yet is a state, not a refusal.
+const filesIn = (folder) => {
+  const entry = lstat(folder);
+  if (entry === undefined) return [];
+  return entry.isDirectory() ? sources(folder) : [""];
+};
 
 // Only two regular files of one size are read: anything else where a file was (a folder, a
 // pipe whose read would wait for a writer) is a difference, and so is another size, which
