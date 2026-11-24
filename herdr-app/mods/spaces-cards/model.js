@@ -23,16 +23,22 @@ const plainPath = (s) => {
 
 // Drops what an agent puts before its title: a status glyph or spinner and the separator
 // after it ("✦  Working", "⠋ - Thinking"), and Codex's blinking "[ ! ] " / "[ . ] " mark.
-// Stops at an opening bracket or curly quote, so a title that starts with one ("[web] login") keeps it.
-const clean = (s) => plain(s).replace(/^[^\p{L}\p{N}\p{Ps}\p{Pi}]+/u, "").replace(/^\[ [!.] \] /, "").trim();
+// Stops at an opening bracket or curly quote, so a title that starts with one ("[web] login") keeps it,
+// and at an emoji ("🔴 login", "❤️ deploy"), except for known status marks.
+// CLEAN, PATH and PATH_GLYPH are the shipped agents list's, kept equal by a test.
+export const CLEAN = /^(?:\[ [!.] \] |[✋⏳]\uFE0F?(?=\s)|(?!(?:\p{Emoji}\uFE0F|[#*]\u20E3))[^\p{L}\p{N}\p{Ps}\p{Pi}\p{Emoji_Presentation}])+/u;
+const clean = (s) => plain(s).replace(CLEAN, "").trim();
+// clean() would strip a path's leading ~ or /: PATH tests the title with only its status
+// glyph gone, which PATH_GLYPH drops.
+export const PATH = /^[~/]|^[A-Za-z]:\\/;
+export const PATH_GLYPH = /^[^\p{L}\p{N}~/]+/u;
 
 // An agent's terminal title when it says what the agent is doing, by the shipped agents
 // list's rule: not a path, its own address, its program's name, or anything with an @.
 // "" otherwise.
 export function tellingTitle(agent) {
   const live = clean(agent?.title);
-  // clean() would strip a path's leading ~ or /: test the title with only its status glyph gone.
-  const path = /^[~/]|^[A-Za-z]:\\/.test((agent?.title ?? "").replace(/^[^\p{L}\p{N}~/]+/u, ""));
+  const path = PATH.test((agent?.title ?? "").replace(PATH_GLYPH, ""));
   const telling = live && live !== agent.address && live !== agent.program?.name && !path && !live.includes("@") && live.toLowerCase() !== agent.program?.key;
   return telling ? live : "";
 }
@@ -177,11 +183,14 @@ export function checkoutsAfter(was, list, repo) {
 // `list`: the run `checkoutsAfter` reads. `known`: what the place knew before this look
 // (`afterLook`), whose checkouts are kept only for the same repo: a folder can come to be in
 // another one.
-// The repo's own .git folder names it, and with its machine tells it from every other; a
-// worktree's top is not the folder that .git is in.
+// The repo's own git folder names it by Herdr's rule: the folder holding .git, else the
+// folder holding a hidden bare repo (<project>/.bare), else a bare repo's own name without
+// its .git. With its machine it tells the repo from every other; a worktree's top is not
+// the folder that .git is in.
 export function gitInfo({ machine, top, repo, branch, counts, list, dirty, known = null }) {
   const id = JSON.stringify([machine, repo]);
-  const name = repo.endsWith("/.git") ? base(repo.slice(0, -5)) : base(repo).replace(/\.git$/, "");
+  const own = base(repo);
+  const name = own === ".git" || own === ".bare" ? base(repo.slice(0, -own.length - 1)) : own.replace(/\.git$/, "");
   const [ahead, behind] = counts.code === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : [0, 0];
   return {
     name: plain(name),

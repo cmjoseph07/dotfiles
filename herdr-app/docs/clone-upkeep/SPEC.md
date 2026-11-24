@@ -185,7 +185,7 @@ Taken in `agents-context` (all four, by the merge):
 |---|---|
 | `clean` keeps a leading emoji | A title such as "🔴 login" keeps its emoji in the agents list; known status marks are still dropped |
 | A kept sub-agent shows its own status | A sub-agent that was given a pane keeps its own status on its row, done included |
-| A helper's done no longer pulls its parent out of Working | A working parent stays under Working when one of its helpers finishes |
+| A kept helper's done does not rank its parent | Nothing new: a working parent stays under Working when a kept helper finishes, as in 0.1.16, now that the helper's own row shows done |
 | Narrow rail row | The row is rounded, and lit when its agent is focused |
 
 Taken in `spaces-cards` (by hand, in `model.js`):
@@ -227,6 +227,8 @@ A title that is only an emoji is now telling, as it is in the agents list.
 `upstream/drift.js` exports one pure function that takes the snapshot folder and the app folder and returns what differs, by shipped mod or layout name.
 A name differs when one of its snapshot files is not byte-for-byte the shipped file, or when a shipped file has no snapshot: the layout file, or anything in its shipped mod folder that is not a folder, other than `gpui-kit.d.ts`, `jsconfig.json` and `.DS_Store`.
 A snapshot file whose shipped file is gone from a mod folder that is still shipped differs too.
+Bytes are read only from two regular files: anything else where a file was, on either side (a folder, a pipe whose read would wait), differs and is never read.
+A name whose files or folders the file system refuses to look at (no permission, a link that leads back to itself) differs as well: what cannot be read cannot be shown to be its snapshot.
 
 `upstream/drift.test.js` runs it against the real folders, one test per name (`spaces`, `agents`, `main`):
 
@@ -369,6 +371,29 @@ Never:
   A link in a shipped mod folder counts as a file: `drift.js` skipped everything that was not a regular file, so a link a release added went unseen.
   A file a release adds gets a snapshot whether or not the clone takes it, with its own `.gitignore` exception and a line in the two file loops: the `.gitignore` tracks only the five snapshots, so the new one would have stayed untracked and the test would skip on every other checkout.
   The Drift test section now states the whole rule of the Task 1 entry above, not only the mod folder half.
+- 2026-11-24 (Checkpoint A ship review, built as Task 3a): `drift` compares only when both sides are files.
+  It read any path that existed, so a folder where a file was threw `EISDIR`, and a throw in a live test is the red failure on a Herdr change this spec forbids.
+  It could not be reached before the first uptake: with no snapshot in the tree no pair was read.
+- 2026-11-24 (Checkpoint B build, approved): `drift` never throws on what the file system refuses.
+  A shipped file or folder without read permission still threw `EACCES` after Task 3a, seen red in five temporary folder cases.
+  Any error of a file system call while a name is compared now counts as that name differing; any other error is a fault in `drift.js` and still throws.
+  This holds for the snapshot side too: an unreadable snapshot is reported as a skip, and the uptake's `cp` over it is where it shows.
+  A shipped file that is now a link leading back to itself is one such error (`ELOOP`), with its own cases.
+- 2026-11-24 (plan, Task 6): `model.js` spells the `clean` regex as Herdr does, with the `\uFE0F` and `\u20E3` escapes, not with the raw characters of the code sample in Code style.
+  The tying test compares `source`, which keeps the spelling, so the two would not compare equal otherwise.
+  The three regexes are exported as `CLEAN`, `PATH` and `PATH_GLYPH`, and the test builds its side from the literal's text in `agents-context/main.js`: it checks the regex that runs, not a second copy.
+  It also fails when the line is gone or doubled, or holds another count of regexes.
+- 2026-11-24 (uptake, 0.1.16 to 0.1.18): The first run, as "The first run" above says.
+  Taken in `agents-context/main.js` by one clean merge, 0 conflicts and 20 changed lines, the same lines as Herdr's own diff: `clean` keeps a leading emoji, a kept sub-agent shows its own status, a kept helper's done does not rank its parent, the narrow rail row is rounded and lit when focused.
+  Taken in `spaces-cards/model.js` by hand: `clean` follows the agents list, and `gitInfo` names a repo kept as `<project>/.bare` after its project folder.
+  Skipped in `spaces-cards`: the whole leading emoji as the avatar, because a card's avatar is the first letter or digit of its first line, and the repo and branch tail hidden when it matches the name without its emoji, because a card has no such tail.
+  `spaces-cards/main.js` was not merged, and both `mod.json` files and the layout were unchanged by Herdr.
+  The five snapshots are the shipped 0.1.18 files, and `cloned_from.version` reads `0.1.18` in all three clones.
+- 2026-11-24 (Checkpoint B review): Four findings of the review, written in.
+  A shipped folder the file system refuses to look at differs: `drift.js` asked `existsSync`, which reads a refusal as "not there", so the names below it passed in silence; it now asks `statSync`, inside the catch, and "absent" is only a path that is not there.
+  The check that both sides are regular files is kept for what the catch cannot do: a read of a pipe waits for a writer, and the test would hang, not fail.
+  The cases for that rule, for a link that leads back to itself, and for an error that is not the file system's now each fail when their guard is removed; before, three of the guards could go unseen.
+  The third row of the agents list's changes said a helper's done no longer pulls its parent out of Working; 0.1.16 already ranked a kept helper's done as idle, and the 0.1.17 notes list only the done shown on its own row.
 
 ## Open questions
 

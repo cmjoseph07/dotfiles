@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { drift } from "./drift.js";
@@ -114,6 +115,97 @@ test("drift reports nothing when the shipped files are absent", (t) => {
 test("drift reports nothing for a shipped mod or layout that is absent, and still reports the others", (t) => {
   const onlyAgents = { "mods/agents/main.js": "changed\n", "mods/agents/mod.json": SHIPPED["mods/agents/mod.json"] };
   assert.deepEqual(drift(...folders(t, SHIPPED, onlyAgents)), ["agents"]);
+});
+
+for (const mod of ["spaces", "agents"]) {
+  test(`drift reports ${mod} when a snapshot file's shipped path is now a folder`, (t) => {
+    const folder = { ...without(SHIPPED, `mods/${mod}/mod.json`), [`mods/${mod}/mod.json/part.json`]: "{}\n" };
+    assert.deepEqual(drift(...folders(t, SHIPPED, folder)), [mod]);
+  });
+
+  test(`drift reports ${mod} when a snapshot file's shipped path is now an empty folder`, (t) => {
+    const [snapshots, app] = folders(t, SHIPPED, without(SHIPPED, `mods/${mod}/mod.json`));
+    mkdirSync(join(app, `mods/${mod}/mod.json`));
+    assert.deepEqual(drift(snapshots, app), [mod]);
+  });
+
+  test(`drift reports ${mod} when a shipped file's snapshot path is a folder`, (t) => {
+    const [snapshots, app] = folders(t, without(SHIPPED, `mods/${mod}/mod.json`), SHIPPED);
+    mkdirSync(join(snapshots, `mods/${mod}/mod.json`));
+    assert.deepEqual(drift(snapshots, app), [mod]);
+  });
+}
+
+test("drift reports main when layouts/main.json is shipped as a folder", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, without(SHIPPED, "layouts/main.json"));
+  mkdirSync(join(app, "layouts/main.json"), { recursive: true });
+  assert.deepEqual(drift(snapshots, app), ["main"]);
+});
+
+test("drift reports main when the snapshot path of layouts/main.json is a folder", (t) => {
+  const [snapshots, app] = folders(t, without(SHIPPED, "layouts/main.json"), SHIPPED);
+  mkdirSync(join(snapshots, "layouts/main.json"), { recursive: true });
+  assert.deepEqual(drift(snapshots, app), ["main"]);
+});
+
+// A read of a pipe waits for a writer, and nothing in this process could end that wait:
+// drift runs in a process of its own, ended if it waits.
+test("drift reports spaces without waiting when a shipped file is now a pipe", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, without(SHIPPED, "mods/spaces/main.js"));
+  execFileSync("mkfifo", [join(app, "mods/spaces/main.js")]);
+  const script = `import { drift } from ${JSON.stringify(import.meta.resolve("./drift.js"))};
+console.log(JSON.stringify(drift(${JSON.stringify(snapshots)}, ${JSON.stringify(app)})));`;
+  const run = spawnSync(process.execPath, ["--input-type=module", "--eval", script], { encoding: "utf8", timeout: 5000 });
+  assert.equal(run.signal, null, "drift waited on the pipe");
+  assert.deepEqual(JSON.parse(run.stdout), ["spaces"]);
+});
+
+for (const mod of ["spaces", "agents"]) {
+  test(`drift reports ${mod} when one of its shipped files is now a link that leads back to itself`, (t) => {
+    const [snapshots, app] = folders(t, SHIPPED, without(SHIPPED, `mods/${mod}/main.js`));
+    symlinkSync("main.js", join(app, `mods/${mod}/main.js`));
+    assert.deepEqual(drift(snapshots, app), [mod]);
+  });
+
+  test(`drift reports ${mod} when one of its shipped files cannot be read`, (t) => {
+    const [snapshots, app] = folders(t, SHIPPED, SHIPPED);
+    chmodSync(join(app, `mods/${mod}/main.js`), 0o000);
+    assert.deepEqual(drift(snapshots, app), [mod]);
+  });
+
+  test(`drift reports ${mod} when a folder below its shipped folder cannot be read`, (t) => {
+    const nested = { ...SHIPPED, [`mods/${mod}/fonts/pixel.ttf`]: "font\n" };
+    const [snapshots, app] = folders(t, nested, nested);
+    const fonts = join(app, `mods/${mod}/fonts`);
+    chmodSync(fonts, 0o000);
+    try {
+      assert.deepEqual(drift(snapshots, app), [mod]);
+    } finally {
+      chmodSync(fonts, 0o755);
+    }
+  });
+}
+
+test("drift reports main when the shipped layouts/main.json cannot be read", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, SHIPPED);
+  chmodSync(join(app, "layouts/main.json"), 0o000);
+  assert.deepEqual(drift(snapshots, app), ["main"]);
+});
+
+test("drift reports both mods when the shipped mods folder cannot be searched", (t) => {
+  const [snapshots, app] = folders(t, SHIPPED, SHIPPED);
+  const mods = join(app, "mods");
+  chmodSync(mods, 0o000);
+  try {
+    assert.deepEqual(drift(snapshots, app), ["spaces", "agents"]);
+  } finally {
+    chmodSync(mods, 0o755);
+  }
+});
+
+test("drift throws an error that is not the file system's: a fault in it is never a Herdr change", (t) => {
+  const [, app] = folders(t, SHIPPED, SHIPPED);
+  assert.throws(() => drift(undefined, app), { code: "ERR_INVALID_ARG_TYPE" });
 });
 
 // The real folders: this file sits in the snapshot folder, inside the app folder.

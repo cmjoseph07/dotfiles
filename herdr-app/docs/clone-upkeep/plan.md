@@ -1,7 +1,7 @@
 # Implementation plan: Herdr clone upkeep
 
 Spec: [SPEC.md](SPEC.md), approved 2026-11-24.
-Status: approved 2026-11-24, Phase A built 2026-11-24 (Tasks 1 to 3), Checkpoint A shipped 2026-11-24, Phase B next.
+Status: approved 2026-11-24, Phase A built 2026-11-24 (Tasks 1 to 3), Checkpoint A shipped 2026-11-24, Phase B built 2026-11-24 (Tasks 3a to 10), Checkpoint B shipped 2026-11-24, Phase C next.
 Task list target: this file (the project keeps spec, plan and tasks together under `herdr-app/docs/clone-upkeep/`, not in `tasks/`).
 
 ## Overview
@@ -24,7 +24,7 @@ Each ends in test, review and one ship commit on `main`, not pushed.
   "Absent" means the shipped mod folder, or the shipped layout file, does not exist: that name is not reported.
 - **`model.js` exports the three tied regexes as named constants**, and the tying test compares each with a `RegExp` built from the literal's text in `agents-context/main.js`, `source` and `flags`.
   The test then checks the regex that runs, not a second copy of its text.
-  `model.js` writes the `clean` literal as Herdr does, with `️` and `⃣` escapes: `source` keeps the spelling, so the raw characters shown in the spec's code sample would not compare equal.
+  `model.js` writes the `clean` literal as Herdr does, with `\uFE0F` and `\u20E3` escapes: `source` keeps the spelling, so the raw characters shown in the spec's code sample would not compare equal.
 - **The mutation checks run on scratch copies**, never on the tracked files.
   A save in a mod folder reloads the live window this work runs inside, and a scratch tree needs no restore.
   The tests find their neighbours by relative path, so a copy of `mods/spaces-cards`, `mods/agents-context`, `upstream/`, the shipped files and `layouts/cards.json` under one scratch folder runs unchanged.
@@ -39,6 +39,7 @@ T1 drift function ──> T2 live drift tests ──> T3 track upstream/, three-
                                                 │
                                    ── Checkpoint A (no snapshot yet) ──
                                                 │
+T3a drift never throws on a folder ──> T8       │
 T4 stage and capture "before"                   │
 T5 merge 0.1.18 into agents-context ──> T6 clean follows, tying test ──> T7 hidden bare repo name
                                                                             │
@@ -118,8 +119,24 @@ Highest risk first inside each phase: T1 settles the drift rule everything else 
 
 The tasks follow the spec's procedure in order: read and decide are done in the spec, then merge (T5, T7), follow (T6), stamp (T8), prove (T9, T10), commit (Checkpoint B).
 Before anything: `herdr-app --version` must still read `0.1.18`; if the app has updated itself, stop and report.
+Task 3a comes first: it is a fix to Phase A's `drift.js` that the ship review of Checkpoint A found, and it must be in before the snapshots are.
 
-- [ ] **Task 4: Stage the end to end states and capture them before the uptake** (S)
+- [x] **Task 3a: `drift` reports a folder where a file was, and never throws** (XS)
+  - Description: Found by the ship review of Checkpoint A on 2026-11-24: `same` in `upstream/drift.js` reads any path that exists, so a folder on either side of a compared path throws `EISDIR`.
+    A throw in a live test is a red failure on a Herdr change, which the spec forbids.
+    Tests first, then `same` compares only when both sides are files (`statSync(path, { throwIfNoEntry: false })?.isFile()`); anything else differs.
+  - Acceptance:
+    - Red first, each a temporary folder case: a snapshot file whose shipped path is now a folder reports that mod; a shipped file whose snapshot path is a folder reports that mod; `layouts/main.json` shipped as a folder, with its snapshot present, reports `main`.
+    - No case throws, and the 26 unit tests of Checkpoint A pass untouched.
+    - It lands before Task 8: with no snapshot in the tree the throw cannot be reached.
+    - Added at the build's approval on 2026-11-24: nothing the file system refuses makes `drift` throw.
+      A shipped file or folder without read permission still threw `EACCES`; any error of a file system call while a name is compared now counts as that name differing.
+  - Verify: the three-folder loop, with `upstream` passing 26 plus the new cases and the three skips still naming `0.1.16`.
+  - Dependencies: Checkpoint A.
+  - Files: `upstream/drift.js`, `upstream/drift.test.js`.
+  - Criteria: 8 (never red on a Herdr change).
+
+- [x] **Task 4: Stage the end to end states and capture them before the uptake** (S)
   - Description: Make the scratch repo `~/Development/scratch/upkeep-e2e` as `.bare` plus one worktree, open a space in the worktree, and stage an agent in it whose title starts with an emoji (`🔴 login`).
     Capture what the user sees today.
   - Acceptance:
@@ -131,7 +148,7 @@ Before anything: `herdr-app --version` must still read `0.1.18`; if the app has 
   - Files: none in the repo.
   - Criteria: 10 (the "before" half).
 
-- [ ] **Task 5: Merge 0.1.18 into `agents-context/main.js`** (S)
+- [x] **Task 5: Merge 0.1.18 into `agents-context/main.js`** (S)
   - Description: Build the base in a scratch folder: `9a7be8c`'s `agents-context/main.js` with `mod: "agents-context"` turned back to `mod: "agents"`.
     Merge to a scratch file with `git merge-file -p`, check it, then run `git merge-file` in place: clone, base, shipped.
   - Acceptance:
@@ -145,7 +162,7 @@ Before anything: `herdr-app --version` must still read `0.1.18`; if the app has 
   - Files: `mods/agents-context/main.js`.
   - Criteria: 1, user story 3.
 
-- [ ] **Task 6: `clean` follows the agents list, with the tying test** (M)
+- [x] **Task 6: `clean` follows the agents list, with the tying test** (M)
   - Description: Tests first in `model.test.js`: the seven emoji and status mark rows of the spec's title table beside the existing rows, and the tying test on the `const clean =` literal and the two literals of the `const path =` line.
     Then `model.js` takes the shipped 0.1.18 regex for `clean`, applied after `plain`, and names the path test and its glyph strip as constants; all three are exported.
   - Acceptance:
@@ -158,7 +175,7 @@ Before anything: `herdr-app --version` must still read `0.1.18`; if the app has 
   - Files: `mods/spaces-cards/model.js`, `mods/spaces-cards/model.test.js`.
   - Criteria: 3, 4 (passes), user story 1.
 
-- [ ] **Task 7: The hidden bare repo name in `gitInfo`** (S)
+- [x] **Task 7: The hidden bare repo name in `gitInfo`** (S)
   - Description: Tests first: a repo at `/x/proj/.bare` is named `proj`, beside the existing name cases.
     Then `gitInfo` names a repo by Herdr's rule: the folder holding `.git`, else the folder holding `.bare`, else the folder's own name without a trailing `.git`.
   - Acceptance:
@@ -169,7 +186,7 @@ Before anything: `herdr-app --version` must still read `0.1.18`; if the app has 
   - Files: `mods/spaces-cards/model.js`, `mods/spaces-cards/model.test.js`.
   - Criteria: 5, user story 2.
 
-- [ ] **Task 8: Stamp: the five snapshots, the version, the log entry** (S)
+- [x] **Task 8: Stamp: the five snapshots, the version, the log entry** (S)
   - Description: Check `herdr-app --version` again, then run the spec's `cp` loop for the five shipped files, set `cloned_from.version` to `0.1.18` in both `mod.json` files and `layouts/cards.json`, and add the 0.1.18 entry to the spec's decisions log: what was taken, what was skipped and why.
     `spaces-cards/main.js` is not merged, as the spec's first run says.
   - Acceptance:
@@ -179,11 +196,11 @@ Before anything: `herdr-app --version` must still read `0.1.18`; if the app has 
     - `git merge-file -p` of the clone, the new `agents` snapshot and the shipped file gives the clone back unchanged.
     - The window still shows `cards` as before the layout file was saved: no `layout.error`, sizes and clicks kept.
   - Verify: the commands above; the unit test loop; both `herdr-app check` runs; `herdr-app status`; a shot.
-  - Dependencies: Tasks 5 to 7.
+  - Dependencies: Tasks 3a, 5 to 7.
   - Files: `upstream/mods/spaces/main.js`, `upstream/mods/spaces/mod.json`, `upstream/mods/agents/main.js`, `upstream/mods/agents/mod.json`, `upstream/layouts/main.json`, `mods/spaces-cards/mod.json`, `mods/agents-context/mod.json`, `layouts/cards.json`, `docs/clone-upkeep/SPEC.md`.
   - Criteria: 2, 6, 7, 8 (no skip on this machine).
 
-- [ ] **Task 9: Mutation checks** (S)
+- [x] **Task 9: Mutation checks** (S)
   - Description: In a scratch copy of the tree, show that each guard does fail or skip when it should.
   - Acceptance:
     - The tying test fails three times, once for each tied regex changed on one side alone: `clean`, the path test, the glyph strip.
@@ -196,7 +213,7 @@ Before anything: `herdr-app --version` must still read `0.1.18`; if the app has 
   - Files: none in the repo.
   - Criteria: 4 (fails), 8 (skip, absent).
 
-- [ ] **Task 10: Capture the three states after the uptake, then clean up** (S)
+- [x] **Task 10: Capture the three states after the uptake, then clean up** (S)
   - Description: Capture the same three states as Task 4 against the new code, compare each with its "before", then remove everything staged.
   - Acceptance:
     - State 1: the card's title and the agents row both show `🔴 login`.
@@ -211,12 +228,12 @@ Before anything: `herdr-app --version` must still read `0.1.18`; if the app has 
 
 ### Checkpoint B: The uptake
 
-- [ ] Test, review, ship as above.
-- [ ] Commit: `feat(herdr-app): take Herdr 0.1.18 into the clones`.
-  One commit holds the merged `agents-context/main.js`, `model.js` and its tests, the five snapshots, the three version stamps and the spec's log entry.
-- [ ] `git ls-files herdr-app/upstream` lists seven files: the five snapshots, `drift.js`, `drift.test.js`.
-- [ ] Criteria 1 to 10 demonstrated, each with its command output or shot.
-- [ ] Not pushed.
+- [x] Test, review, ship as above.
+- [x] Commit: `feat(herdr-app): take Herdr 0.1.18 into the clones`.
+  One commit holds the merged `agents-context/main.js`, `model.js` and its tests, the five snapshots, the three version stamps, the spec's log entry and Task 3a's fix to `drift.js` with its tests.
+- [x] `git ls-files herdr-app/upstream` lists seven files: the five snapshots, `drift.js`, `drift.test.js`.
+- [x] Criteria 1 to 10 demonstrated, each with its command output or shot.
+- [x] Not pushed.
 
 ### Phase C: Documents and close
 
@@ -264,7 +281,7 @@ Before anything: `herdr-app --version` must still read `0.1.18`; if the app has 
 | 5. `/x/proj/.bare` is named `proj` | 7 | Checkpoint B |
 | 6. `cloned_from.version` is `0.1.18` three times | 8 | Checkpoint B |
 | 7. Five snapshots byte-for-byte, tracked | 3 (rules), 8 (`cmp`) | Checkpoint B |
-| 8. Drift: no skip here, skip on a changed byte, silent when absent | 1, 2, 8, 9 | Checkpoints A and B |
+| 8. Drift: no skip here, skip on a changed byte, silent when absent | 1, 2, 3a, 8, 9 | Checkpoints A and B |
 | 9. Loop, checks, status, no `*.error` | 3, then every checkpoint | A, B, C |
 | 10. Three end to end states captured | 4 (before), 10 (after) | Checkpoint B |
 | 11. Card sidebar spec done, pointer, questions 3 and 4 closed | 11 | Checkpoint C |

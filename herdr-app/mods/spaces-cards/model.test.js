@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { afterLook, age, agentPrograms, avatarLetter, base, cardHead, cardState, cardTitle, cardTooltip, checkout, checkoutsAfter, dirtyAfter, elapsed, gitInfo, highestContext, plannedMoves, readableBranch, standing, tellingTitle, unopened, visualOrder, worktreeAgent } from "./model.js";
+import { CLEAN, PATH, PATH_GLYPH, afterLook, age, agentPrograms, avatarLetter, base, cardHead, cardState, cardTitle, cardTooltip, checkout, checkoutsAfter, dirtyAfter, elapsed, gitInfo, highestContext, plannedMoves, readableBranch, standing, tellingTitle, unopened, visualOrder, worktreeAgent } from "./model.js";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -84,6 +84,78 @@ test("tellingTitle rejects an empty or missing title", () => {
   assert.equal(tellingTitle(agent(null)), "");
   assert.equal(tellingTitle(agent("✳ ")), "");
   assert.equal(tellingTitle(undefined), "");
+});
+
+for (const [title, telling] of [
+  ["🔴 login", "🔴 login"],
+  ["❤️ deploy", "❤️ deploy"],
+  ["· 🔴 login", "🔴 login"],
+  ["🇩🇪 release", "🇩🇪 release"],
+  ["🚀", "🚀"],
+]) {
+  test(`tellingTitle keeps the emoji a title starts with, as the agents list does: "${title}"`, () => {
+    assert.equal(tellingTitle(agent(title)), telling);
+  });
+}
+
+for (const [title, telling] of [
+  ["✋ Needs input", "Needs input"],
+  ["⏳ Waiting on CI", "Waiting on CI"],
+]) {
+  test(`tellingTitle drops a status mark that is an emoji: "${title}"`, () => {
+    assert.equal(tellingTitle(agent(title)), telling);
+  });
+}
+
+// The title rule is the shipped agents list's, copied by hand: these read the regexes that
+// agents-context/main.js runs and compare them with the ones this mod runs.
+const agentsList = readFileSync(new URL("../agents-context/main.js", import.meta.url), "utf8").split("\n");
+
+// The regex literals on a line of source, in order. One starts at a / that follows (, = or
+// a comma, and ends at the next / outside a character class and not escaped.
+function regexLiterals(line) {
+  const found = [];
+  for (let start = 0; start < line.length; start++) {
+    if (line[start] !== "/" || !/[(=,]\s*$/.test(line.slice(0, start))) continue;
+    let end = start + 1;
+    for (let inClass = false; end < line.length && (inClass || line[end] !== "/"); end++) {
+      if (line[end] === "\\") end++;
+      else if (line[end] === "[") inClass = true;
+      else if (line[end] === "]") inClass = false;
+    }
+    const flags = /^[a-z]*/.exec(line.slice(end + 1))[0];
+    found.push(new RegExp(line.slice(start + 1, end), flags));
+    start = end + flags.length;
+  }
+  return found;
+}
+
+// The regexes on the one line of the agents list that `holds` picks. A line that is gone or
+// doubled, or holds another count of regexes, is a rule that moved: a rule to look at.
+function tied(holds, count) {
+  const lines = agentsList.filter(holds);
+  assert.equal(lines.length, 1, `${lines.length} lines of agents-context/main.js match, not 1`);
+  const found = regexLiterals(lines[0]);
+  assert.equal(found.length, count, `${found.length} regexes on that line, not ${count}: ${lines[0].trim()}`);
+  return found;
+}
+const cleanLine = (line) => line.startsWith("const clean =");
+const pathLine = (line) => line.trimStart().startsWith("const path =") && line.includes(".test(");
+const spelled = (regex) => [regex.source, regex.flags];
+
+test("the regex tellingTitle cleans a title with is the agents list's", () => {
+  const [clean] = tied(cleanLine, 1);
+  assert.deepEqual(spelled(CLEAN), spelled(clean));
+});
+
+test("the regex tellingTitle tests for a path with is the agents list's", () => {
+  const [path] = tied(pathLine, 2);
+  assert.deepEqual(spelled(PATH), spelled(path));
+});
+
+test("the regex tellingTitle drops a status glyph with before the path test is the agents list's", () => {
+  const [, glyph] = tied(pathLine, 2);
+  assert.deepEqual(spelled(PATH_GLYPH), spelled(glyph));
 });
 
 test("title rule 1: the name the user typed for the space wins", () => {
@@ -531,6 +603,14 @@ test("gitInfo: the repo's name, the branch and how far it is from its upstream",
 
 test("gitInfo names a bare repo after its folder, without the .git", () => {
   assert.equal(gitInfo(refs({ top: "/code/worktrees/cards", repo: "/code/lanternhall.git" })).name, "lanternhall");
+});
+
+test("gitInfo names a repo kept as a hidden .bare folder after the project folder holding it", () => {
+  assert.equal(gitInfo(refs({ top: "/x/proj/main", repo: "/x/proj/.bare" })).name, "proj");
+});
+
+test("gitInfo names a bare repo whose folder only ends in .bare after that folder", () => {
+  assert.equal(gitInfo(refs({ top: "/code/worktrees/cards", repo: "/code/lanternhall.bare" })).name, "lanternhall.bare");
 });
 
 test("gitInfo: a detached head has no branch", () => {
