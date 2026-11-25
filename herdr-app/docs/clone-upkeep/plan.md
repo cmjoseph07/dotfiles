@@ -1,7 +1,7 @@
 # Implementation plan: Herdr clone upkeep
 
 Spec: [SPEC.md](SPEC.md), approved 2026-11-24.
-Status: approved 2026-11-24, Phase A built 2026-11-24 (Tasks 1 to 3), Checkpoint A shipped 2026-11-24, Phase B built 2026-11-24 (Tasks 3a to 10), Checkpoint B shipped 2026-11-24, Task 10a added 2026-11-24 from its ship review, Task 10a built 2026-11-24, Task 11 built 2026-11-24, Task 12 built 2026-11-24, Task 12a added 2026-11-24 from its dry read, Task 12a built 2026-11-24, Checkpoint C tested 2026-11-24, Checkpoint C reviewed 2026-11-24, Checkpoint C shipped 2026-11-24, its ship fixes made 2026-11-24, their ship 2026-11-24, a second round of ship fixes made 2026-11-24 from the ship review of `dc30107`, tested 2026-11-24, reviewed 2026-11-24, shipped 2026-11-24, a third round of ship fixes made 2026-11-24 from the ship review of `530819d`, tested 2026-11-24, reviewed 2026-11-24, shipped 2026-11-24; the plan is done.
+Status: approved 2026-11-24, Phase A built 2026-11-24 (Tasks 1 to 3), Checkpoint A shipped 2026-11-24, Phase B built 2026-11-24 (Tasks 3a to 10), Checkpoint B shipped 2026-11-24, Task 10a added 2026-11-24 from its ship review, Task 10a built 2026-11-24, Task 11 built 2026-11-24, Task 12 built 2026-11-24, Task 12a added 2026-11-24 from its dry read, Task 12a built 2026-11-24, Checkpoint C tested 2026-11-24, Checkpoint C reviewed 2026-11-24, Checkpoint C shipped 2026-11-24, its ship fixes made 2026-11-24, their ship 2026-11-24, a second round of ship fixes made 2026-11-24 from the ship review of `dc30107`, tested 2026-11-24, reviewed 2026-11-24, shipped 2026-11-24, a third round of ship fixes made 2026-11-24 from the ship review of `530819d`, tested 2026-11-24, reviewed 2026-11-24, shipped 2026-11-24, Task 13 added 2026-11-24 from its ship, built, tested, reviewed and shipped 2026-11-24; the plan is done.
 Task list target: this file (the project keeps spec, plan and tasks together under `herdr-app/docs/clone-upkeep/`, not in `tasks/`).
 
 ## Overview
@@ -316,6 +316,20 @@ Task 10a comes first: it closes the gaps the ship review of Checkpoint B found, 
   - Files: `mods/agents-context/clone.test.js`, a new test file in `mods/spaces-cards/`, `upstream/drift.test.js`, `docs/clone-upkeep/SPEC.md`.
   - Criteria: 1, 9.
 
+- [x] **Task 13: A test that runs "Move the snapshots"** (S)
+  - Description: Raised by the test coverage pass of the third round's ship and taken at its approval on 2026-11-24, built through to its commit with no stop between, as the user asked.
+    "Move the snapshots" writes, and each review round found a new way it went wrong, where only scratch runs by hand had shown it right.
+  - Acceptance:
+    - `upstream/move.test.js` runs "Move the snapshots" and "Remove the staging folder of a stopped move", taken from the spec as written, in bash and zsh against scratch trees.
+    - Each tree the move moves all five in, each check it stops on with its message, the wrong folder, `CDPATH`, a rename an ACL refuses and the move run again, a link put at a snapshot after the checks, and what the removal leaves are each a test; the file list is the move's own.
+    - The Commands preamble's rule, no `'` in a comment of a block, is a test.
+    - Each fault put into either block in a scratch copy is red, and an honest edit (a file added to the list, the list reordered) is not.
+    - `.gitignore` tracks the file; Project structure, the Commands comment, Testing strategy and a decisions log entry name it.
+  - Verify: the three-folder loop, with more passes than 118 in `upstream` and no skip; each fault red; both `herdr-app check` runs; `herdr-app status`; no `*.error` file.
+  - Dependencies: the ship of the third round.
+  - Files: `upstream/move.test.js`, `.gitignore`, `docs/clone-upkeep/SPEC.md`.
+  - Criteria: 9.
+
 ### Checkpoint C: Documents and close
 
 - [x] Test, review, ship as above.
@@ -348,7 +362,9 @@ Task 10a comes first: it closes the gaps the ship review of Checkpoint B found, 
   - Ship of the third round 2026-11-24: fresh code review, security audit and test coverage passes found nothing critical or high; the review's one required change, a `'` in a comment of "Move the snapshots" that swallowed the block pasted into an interactive zsh, and the passes' low findings and nits were fixed before the commit, approved with the ship, see "Found in its ship" in the same entry.
     Unit tests 182, 26 and 118 passing with no skip, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
     In bash and zsh, the move did as the spec says for 14 scratch trees each, with `mv -h` against a link put at a snapshot after its checks, pasted into an interactive zsh with `interactive_comments` set and not, and on the real tree with no change git sees.
-    A repeatable test of "Move the snapshots" was raised and left for a decision after the commit.
+    A repeatable test of "Move the snapshots" was raised and left for a decision after the commit: taken as Task 13.
+  - Task 13 2026-11-24, built, tested, reviewed and shipped with no stop between, as the user asked: unit tests 182, 26 and 179 passing with no skip, both mods pass `herdr-app check`, `herdr-app status` lists no errors, no `*.error` file.
+    20 faults put into the two blocks were each red and four honest edits green; a fresh code review found two required changes and seven optional ones, all fixed, see the "Task 13" entry in the spec's decisions log.
 - [x] Commit: `fix(herdr-app): close the upkeep's test gaps, point the card sidebar spec here`.
   One commit holds Task 10a's fixes and tests, Task 12a's tests, the spec's wording and log entries, and the documents of Tasks 11 and 12.
 - [x] Commit: `fix(herdr-app): close the upkeep's ship review findings`.
@@ -357,7 +373,9 @@ Task 10a comes first: it closes the gaps the ship review of Checkpoint B found, 
   One commit holds the second round of ship fixes: `drift.js`'s shared `filesBelow` and `namesMod` with their tests, both `clone.test.js` files on them, the spec's commands and its "Checkpoint C ship fixes, second round" entry, and the card sidebar spec's shot path.
 - [x] Commit: `fix(herdr-app): close the upkeep's third round of ship review findings`.
   One commit holds the third round of ship fixes: `drift.js`'s `snapshotLinks` and `codeIn` with their tests, both `clone.test.js` files on `codeIn` and `cloned_from.name`, the spec's commands, step 5 and test sections, and its "Checkpoint C ship fixes, third round" entry.
-- [x] `git log origin/main..main` lists the six commits of this plan; nothing was pushed.
+- [x] Commit: `test(herdr-app): run the snapshot move as the spec writes it`.
+  One commit holds Task 13: `upstream/move.test.js`, its `.gitignore` line, and the spec's Project structure, Commands, Testing strategy and "Task 13" entry.
+- [x] `git log origin/main..main` lists the seven commits of this plan; nothing was pushed.
 - [x] This plan fully checked.
 
 ## Success criteria map

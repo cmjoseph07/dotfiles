@@ -32,13 +32,15 @@ herdr-app/mods/*/*
 !herdr-app/mods/*/*.js
 !herdr-app/mods/*/*.svg
 !herdr-app/mods/*/mod.json
-# upstream: the shipped files the clones were last merged from, and the drift
-# test that compares them with what Herdr ships now (docs/clone-upkeep/SPEC.md).
-# Only the five snapshots and the test's two files, whatever else lands there
+# upstream: the shipped files the clones were last merged from, the drift test
+# that compares them with what Herdr ships now, and the test of the hand-run move
+# of the snapshots (docs/clone-upkeep/SPEC.md). Only the five snapshots, the
+# drift test's two files and the move test, whatever else lands there
 !herdr-app/upstream/
 herdr-app/upstream/*
 !herdr-app/upstream/drift.js
 !herdr-app/upstream/drift.test.js
+!herdr-app/upstream/move.test.js
 !herdr-app/upstream/mods/
 herdr-app/upstream/mods/*
 !herdr-app/upstream/mods/spaces/

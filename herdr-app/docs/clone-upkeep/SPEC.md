@@ -77,6 +77,7 @@ herdr-app/
     layouts/main.json                pristine snapshot
     drift.js                         which snapshots differ from the shipped files, what each live test does, links among the snapshots; the clones' tests' code reader and name pattern
     drift.test.js                    node --test; one version and each one's shipped name in the clones; no link among the snapshots; no shipped mod in layouts/cards.json, and both clones in it
+    move.test.js                     node --test; Move the snapshots and the removal of its staging folder, as this file writes them, in bash and zsh against scratch trees; no ' in a comment of the Commands
   mods/spaces-cards/model.js         clean follows the agents list; hidden bare repo name
   mods/spaces-cards/model.test.js    tying test, emoji rows, bare repo rows
   mods/spaces-cards/clone.test.js    its scan reads main.js and every file it lists; no shipped spaces name in its code
@@ -95,14 +96,14 @@ A snapshot's path under `upstream/` is the shipped file's path under `herdr-app/
 | `mods/agents-context/mod.json` | `upstream/mods/agents/mod.json` | `mods/agents/mod.json` |
 | `layouts/cards.json` | `upstream/layouts/main.json` | `layouts/main.json` |
 
-The repo's `.gitignore` tracks `herdr-app/upstream/` with the same care as the mod folders: only the five snapshots, `drift.js` and `drift.test.js`.
+The repo's `.gitignore` tracks `herdr-app/upstream/` with the same care as the mod folders: only the five snapshots, `drift.js`, `drift.test.js` and `move.test.js`.
 
 ## Commands
 
 All paths are relative to `~/.config`.
 The blocks are bash and zsh syntax; fish does not run them.
 An interactive zsh runs a `#` line as a command unless `setopt interactive_comments` was run in it first: run that before pasting a block there.
-No comment in a block holds a `'`, which, with that option off, would open a quote that swallows the lines below it.
+No comment in a block holds a `'`, which, with that option off, would open a quote that swallows the lines below it; `upstream/move.test.js` checks it.
 A temporary path is written `${TMPDIR:?}/...`, which stops the command when `TMPDIR` is unset, where `$TMPDIR/...` would be a path at the root.
 
 ```sh
@@ -178,7 +179,8 @@ EOF
 # a write. Then every shipped file is copied into a staging folder in upstream/, and only once all five are copied is each
 # renamed over its snapshot: a rename never writes into what was there, so a hard link at a snapshot leaves its other name
 # as it was, and mv -h replaces a link put at a snapshot after the checks, where mv alone moves into the folder it leads to.
-# Up to the renames, a stop moves nothing, and the staging folder is removed.
+# Up to the renames, a stop moves nothing, and the staging folder is removed. upstream/move.test.js runs this block and the
+# next one as they are written here, in bash and zsh, against scratch trees.
 (cd ./herdr-app || exit 1; set -- mods/spaces/main.js mods/spaces/mod.json mods/agents/main.js mods/agents/mod.json layouts/main.json
 realway() { local way=$1; [ ! -L "$way" ] || return 1
   while way=$(dirname "$way"); [ "$way" != . ] && [ "$way" != / ]; do
@@ -478,7 +480,8 @@ Snapshots are never edited: each is written only by `cp` from the shipped file, 
 | Unit | The tied lines of `agents-context` against its snapshot; its sort menu's own name; its scan reads `main.js` and every file it lists, and finds no `mod: "agents"` or `mods/agents/` in its code | `node --test`, `agents-context/clone.test.js` |
 | Unit | The scan of `spaces-cards` reads `main.js` and every file it lists, and finds no `mod: "spaces"` or `mods/spaces/` in its code | `node --test`, `spaces-cards/clone.test.js` |
 | Unit | `drift`, `verdict`, `snapshotLinks`, `filesBelow` and `codeIn` against temporary folders; `namesMod` against the ways code names a mod; the three live tests; one version in the three clones, and each one's shipped name; no link or hard link among the snapshots; no block of `layouts/cards.json` opens `spaces` or `agents`, and blocks open both clones, which shows the layout's scan read its blocks | `node --test`, `upstream/drift.test.js` |
-| Mutation | The tying test, the drift test, the clones' names, `snapshotLinks` and `codeIn` do fail or skip when they should | in a scratch copy: change one regex alone, then one shipped byte, then put a shipped name into a clone or the layout, then a link, a hard link or a pipe where a test says none goes, then a fault into `snapshotLinks` or `codeIn`, and run |
+| Unit | "Move the snapshots" and "Remove the staging folder of a stopped move", taken from this file as written, in bash and zsh against scratch trees: each tree the move moves all five in, each check it stops on with its message, a rename an ACL refuses and the move run again, a link put at a snapshot after its checks, `CDPATH`, the wrong folder, and what the removal leaves; no `'` in a comment of the Commands | `node --test`, `upstream/move.test.js` |
+| Mutation | The tying test, the drift test, the clones' names, `snapshotLinks`, `codeIn` and the move test do fail or skip when they should | in a scratch copy: change one regex alone, then one shipped byte, then put a shipped name into a clone or the layout, then a link, a hard link or a pipe where a test says none goes, then a fault into `snapshotLinks` or `codeIn`, then one into "Move the snapshots" or the removal of its staging folder, and run |
 | Load | Each mod loads and renders once | `herdr-app check <mod>` after every edit |
 | End to end | The real window | `herdr-app shot`, inspected at full size |
 
@@ -740,6 +743,17 @@ Never:
   `snapshotLinks` works out the way to each path once, the entry above says `(cd ./herdr-app || exit 1` as the blocks start now, and the Testing strategy rows name what the scans and mutations cover now.
   Unit tests 182, 26 and 118 passing with no skip.
   In bash and zsh, the move taken from this file did as it says for 14 scratch trees each, the ACL tree and a tree with `upstream/` set to 555 among them, and on the real tree it exited 0 with no change git sees.
+- 2026-11-24 (Task 13, from the ship of the third round): "Move the snapshots" had no test that runs again, though it writes: each review round found a new way it went wrong, and only scratch runs by hand had shown it right.
+  `upstream/move.test.js` takes it, and "Remove the staging folder of a stopped move", from this file as written, each from its title comment to the blank line after it, and runs each in bash and in `zsh -f` against scratch trees whose path holds a space, in a process group of its own that is killed after, with `CDPATH`, `BASH_ENV` and the like left out and `LC_ALL=C`.
+  The shipped files it builds come from the move's own `set --` line, so an uptake that adds one to that list adds it to the test too.
+  Six trees the move moves all five in, silent, with nothing else in `herdr-app` changed; 17 it stops on, each with its whole message and nothing changed inside or outside; the wrong folder, which has to stop at the `cd`; `CDPATH`, run from the tree and from outside it; a rename an ACL refuses, then the move run again once the ACL is gone; a link put at a snapshot after the checks; and two for the removal: 30 tests in each shell.
+  One more checks the rule of the Commands preamble, that no comment in a block holds a `'`: 61 tests, about 4 s.
+  The file skips off macOS, as the move takes BSD `mv -h`, the permission cases when run as root, and the half of a shell that is not there.
+  In a scratch copy, 20 faults put into the two blocks one at a time were each red: `mv` without `-h`; no check of `upstream/`, of the way to a path, of a link at it or on its way, of a snapshot, or of a write; `cp` straight over the snapshots; the staging folder kept when a copy or a rename fails; `cd herdr-app`, and a `cd` with no `|| exit 1`; a stray file in `upstream/` or in a mod folder; a line on stderr; a `'` in a comment; and the removal without `-type d`, without `-maxdepth 1`, matching any `.move.` name, or following a link.
+  A sixth shipped file in the list, the list reordered, the `mktemp` path quoted and `cp --` each stayed green, and with the shipped file check taken out, a pipe as a shipped file timed out red at 10 s and left no process behind.
+  Two were green at first: with the folder check in `realway` taken out the write checks stop the same trees, so each stop asserts its whole message; and with no `|| exit 1` on the `cd` the path checks stop the move, so the wrong folder has to stop at the `cd`.
+  Found in its review and fixed: the test kept its own copy of the file list; its walk of a tree went through a link to a folder, which `readdirSync` with `recursive` does; a move that wrote more than the snapshots, or a line on stderr, passed; `cd herdr-app` passed in zsh, which looks in `.` before `CDPATH`; a block ended at a line it named rather than at the blank line after it; and the link put after the checks went in after `mktemp`, not before the renames, and with no `|| exit 9`.
+  `.gitignore` tracks the file.
 
 ## Open questions
 
