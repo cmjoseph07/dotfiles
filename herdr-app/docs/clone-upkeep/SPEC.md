@@ -75,13 +75,13 @@ herdr-app/
     mods/agents/main.js              pristine snapshot
     mods/agents/mod.json             pristine snapshot
     layouts/main.json                pristine snapshot
-    drift.js                         which snapshots differ from the shipped files, what each live test does; the clones' tests' walker and name pattern
-    drift.test.js                    node --test; one version in the clones; no shipped mod in layouts/cards.json, and both clones in it
+    drift.js                         which snapshots differ from the shipped files, what each live test does, links among the snapshots; the clones' tests' code reader and name pattern
+    drift.test.js                    node --test; one version and each one's shipped name in the clones; no link among the snapshots; no shipped mod in layouts/cards.json, and both clones in it
   mods/spaces-cards/model.js         clean follows the agents list; hidden bare repo name
   mods/spaces-cards/model.test.js    tying test, emoji rows, bare repo rows
-  mods/spaces-cards/clone.test.js    its scan reads main.js; no shipped spaces name in its code
+  mods/spaces-cards/clone.test.js    its scan reads main.js and every file it lists; no shipped spaces name in its code
   mods/agents-context/main.js        the four 0.1.18 changes, by merge
-  mods/agents-context/clone.test.js  the tied lines are the snapshot's; the sort menu's own name; its scan reads main.js; no shipped agents name in its code
+  mods/agents-context/clone.test.js  the tied lines are the snapshot's; the sort menu's own name; its scan reads main.js and every file it lists; no shipped agents name in its code
   mods/*/mod.json, layouts/cards.json   cloned_from.version
 ```
 
@@ -101,6 +101,8 @@ The repo's `.gitignore` tracks `herdr-app/upstream/` with the same care as the m
 
 All paths are relative to `~/.config`.
 The blocks are bash and zsh syntax; fish does not run them.
+An interactive zsh runs a `#` line as a command unless `setopt interactive_comments` was run in it first: run that before pasting a block there.
+No comment in a block holds a `'`, which, with that option off, would open a quote that swallows the lines below it.
 A temporary path is written `${TMPDIR:?}/...`, which stops the command when `TMPDIR` is unset, where `$TMPDIR/...` would be a path at the root.
 
 ```sh
@@ -115,18 +117,18 @@ done)
 # What Herdr changed since the version taken: a diff per snapshot, then the files of the shipped mod folders, at any depth,
 # that have no snapshot (>) or whose snapshot has no shipped file (<). Prints nothing when nothing changed.
 # gpui-kit.d.ts and jsconfig.json are written by the app, .DS_Store by Finder: none is a shipped file.
-(cd herdr-app && for f in mods/spaces/main.js mods/spaces/mod.json mods/agents/main.js mods/agents/mod.json layouts/main.json; do
+(cd ./herdr-app || exit 1; for f in mods/spaces/main.js mods/spaces/mod.json mods/agents/main.js mods/agents/mod.json layouts/main.json; do
   diff -u "upstream/$f" "$f"
 done
-diff <(cd upstream && find mods/spaces mods/agents ! -type d ! -name .DS_Store | sort) \
+diff <(cd ./upstream && find mods/spaces mods/agents ! -type d ! -name .DS_Store | sort) \
   <(find mods/spaces mods/agents ! -type d ! -name gpui-kit.d.ts ! -name jsconfig.json ! -name .DS_Store | sort))
 
 # Stage a capture: a throwaway repo in $TMPDIR and a space shown on it. One line, as a shell keeps no variable for the next
-# command: it prints the space's id and the repo's path as "space=<id> repo=<path>", which the removal takes back.
+# command: it prints the id of the space and the path of the repo as "space=<id> repo=<path>", which the removal takes back.
 repo=$(mktemp -d "${TMPDIR:?}/capture.XXXXXX") && git -C "$repo" init -q && space=$(herdr-app do space.new --folder "$repo" | jq -er '.space') && printf 'space=%q repo=%q\n' "$space" "$repo"
-# Remove a capture's staging: in one shell, the line "Stage a capture" printed, then this: that space by its id, then the repo.
-# Nothing is closed or removed unless the path is a capture's repo and herdr-app ls lists a space of that id made on it, so a
-# wrong or empty id stops here: space.close with no --id closes the focused space, agents and all. The repo's name ends in six
+# Remove a capture: in one shell, the line "Stage a capture" printed, then this: that space by its id, then the repo.
+# Nothing is closed or removed unless the path is the repo of a capture and herdr-app ls lists a space of that id made on it, so a
+# wrong or empty id stops here: space.close with no --id closes the focused space, agents and all. The name of the repo ends in six
 # letters or digits, as mktemp makes it: a ? in a case pattern matches a /, so capture.?????? would take capture.a/../b.
 case $repo in "${TMPDIR:?}"/capture.[[:alnum:]][[:alnum:]][[:alnum:]][[:alnum:]][[:alnum:]][[:alnum:]]) herdr-app ls | jq -e --arg id "$space" --arg repo "$repo" 'any(.spaces[]; .id == $id and .folder == $repo) // error("no space \($id) on \($repo)")' > /dev/null && herdr-app do space.close --id "$space" --confirmed true && rm -rf -- "$repo" ;; *) echo "not a capture's repo: $repo" >&2; false ;; esac
 
@@ -134,12 +136,12 @@ case $repo in "${TMPDIR:?}"/capture.[[:alnum:]][[:alnum:]][[:alnum:]][[:alnum:]]
 # The scratch file is in $TMPDIR, private to this user: it becomes live mod code.
 git merge-file -p herdr-app/mods/agents-context/main.js herdr-app/upstream/mods/agents/main.js herdr-app/mods/agents/main.js > "${TMPDIR:?}/agents-context.main.js"
 # With any conflict resolved there: the lines the merge changed in the clone are the lines Herdr changed (prints nothing when so).
-diff <(diff <(cat herdr-app/mods/agents-context/main.js) <(cat "${TMPDIR:?}/agents-context.main.js") | grep '^[<>]' | sort) \
+: "${TMPDIR:?}" && diff <(diff <(cat herdr-app/mods/agents-context/main.js) <(cat "${TMPDIR:?}/agents-context.main.js") | grep '^[<>]' | sort) \
   <(diff <(cat herdr-app/upstream/mods/agents/main.js) <(cat herdr-app/mods/agents/main.js) | grep '^[<>]' | sort)
 # Then, once read, copy it over the clone: the live mod is written once, whole.
 cp "${TMPDIR:?}/agents-context.main.js" herdr-app/mods/agents-context/main.js
 
-# The shipped title rule run over titles, for the title table's "after": per title, what the shipped clean leaves,
+# The shipped title rule run over titles, for the "after" of the title table: per title, what the shipped clean leaves,
 # then "path" when the shipped path test rejects the title. Both are the shipped lines, run as they are (the titles are examples).
 node -e '
 const src = require("fs").readFileSync("herdr-app/mods/agents/main.js", "utf8");
@@ -148,12 +150,12 @@ const path = new Function("l", `return ${src.match(/^\s*const path = (.*\.test\(
 for (const t of process.argv.slice(1)) console.log([t, t.replace(clean, "").trim(), path({ title: t }) ? "path" : ""].join("\t"));
 ' '🔴 login' '✋ Needs input' '✳ ~/code/app'
 
-# The clone's own changes, before and after: per pair, the lines the clone holds that its snapshot does not and the reverse,
+# What each clone changes, before and after: per pair, the lines the clone holds that its snapshot does not and the reverse,
 # as committed (<) and as now (>). Run after the stamp, before the commit. Prints nothing when every pair holds the same lines.
 # Each printed line is old (<) or now (>), then a snapshot line (<) or a clone line (>): "> <" is a Herdr line the clone does not take.
-# JSON is read without cloned_from and with sorted keys, and lines are sorted: Apple's diff lines up repeated lines
+# JSON is read without cloned_from and with sorted keys, and lines are sorted: the diff of macOS lines up repeated lines
 # one way for a file and another for a pipe, so an unsorted compare prints lines that did not change.
-(cd herdr-app
+(cd ./herdr-app || exit 1
 own() { case $1 in *.json) jq -S 'del(.cloned_from)' ;; *) cat ;; esac; }
 while read -r clone shipped; do
   git cat-file -e "HEAD:herdr-app/$clone" 2>/dev/null || { echo "== $clone: new in this uptake, nothing committed to compare"; continue; }
@@ -169,11 +171,37 @@ layouts/cards.json layouts/main.json
 EOF
 )
 
-# Move the snapshots to the version taken. Every shipped file is checked before any is copied: one that is not a regular
-# file stops it with nothing moved, as cp copies what a link leads to, and waits on a pipe.
-(cd herdr-app && set -- mods/spaces/main.js mods/spaces/mod.json mods/agents/main.js mods/agents/mod.json layouts/main.json
-for f; do [ -f "$f" ] && [ ! -L "$f" ] || { echo "not a regular file: herdr-app/$f" >&2; exit 1; }; done
-for f; do mkdir -p "upstream/$(dirname "$f")" && cp "$f" "upstream/$f" || exit 1; done)
+# Move the snapshots to the version taken. Every path is checked before anything is written: each shipped file a regular
+# file, each snapshot one or not there yet, neither a link, and each folder on the way to either a real folder or not there
+# yet, as cp copies what a link leads to and waits on a pipe, a link on the way leads a write elsewhere, and no folder can be
+# made where a file is. Then the folder of each snapshot is made, and it, the snapshot when there, and upstream/ must take
+# a write. Then every shipped file is copied into a staging folder in upstream/, and only once all five are copied is each
+# renamed over its snapshot: a rename never writes into what was there, so a hard link at a snapshot leaves its other name
+# as it was, and mv -h replaces a link put at a snapshot after the checks, where mv alone moves into the folder it leads to.
+# Up to the renames, a stop moves nothing, and the staging folder is removed.
+(cd ./herdr-app || exit 1; set -- mods/spaces/main.js mods/spaces/mod.json mods/agents/main.js mods/agents/mod.json layouts/main.json
+realway() { local way=$1; [ ! -L "$way" ] || return 1
+  while way=$(dirname "$way"); [ "$way" != . ] && [ "$way" != / ]; do
+    [ ! -L "$way" ] && { [ -d "$way" ] || [ ! -e "$way" ]; } || return 1
+  done; }
+for f; do
+  [ -f "$f" ] && realway "$f" || { echo "not a regular file, or a link or not a folder on its way: herdr-app/$f" >&2; exit 1; }
+  { [ -f "upstream/$f" ] || [ ! -e "upstream/$f" ]; } && realway "upstream/$f" \
+    || { echo "not a regular file, or a link or not a folder on its way: herdr-app/upstream/$f" >&2; exit 1; }
+done
+for f; do d=upstream/$(dirname "$f")
+  mkdir -p "$d" && [ -w "$d" ] && { [ ! -e "upstream/$f" ] || [ -w "upstream/$f" ]; } || { echo "cannot write herdr-app/upstream/$f" >&2; exit 1; }
+done
+[ -w upstream ] || { echo "cannot write herdr-app/upstream" >&2; exit 1; }
+stage=$(mktemp -d upstream/.move.XXXXXX) || exit 1
+for f; do mkdir -p "$stage/$(dirname "$f")" && cp "$f" "$stage/$f" || { rm -rf -- "$stage"; exit 1; }; done
+for f; do mv -f -h "$stage/$f" "upstream/$f" || { rm -rf -- "$stage"; exit 1; }; done
+rm -rf -- "$stage")
+
+# Remove the staging folder of a stopped move: only a stop from outside, such as a Ctrl-C, leaves one, as every other stop
+# removes it. Only a real folder directly in upstream/ named as mktemp names it is removed: find matches the name alone, so
+# a ? never takes a /, and a link of that name is not a folder to it.
+find herdr-app/upstream -maxdepth 1 -type d -name '.move.??????' -exec rm -rf -- {} +
 
 # Set cloned_from.version in the three clones to the version the app is at (only that line changes)
 v=$(herdr-app --version | awk '{print $2}')
@@ -219,7 +247,7 @@ Before step 1:
    Before anything is written, each change that draws is captured as the window shows it now: once a clone is saved, the window shows only the new code.
    What a capture needs on screen is staged outside `~/.config` with "Stage a capture": a throwaway git repo in `$TMPDIR`, a space shown on it with its terminal, as AGENTS.md's "The model" says.
    It is one line, and prints the space's id and the repo's path: a shell, an agent's above all, keeps no variable from one command to the next.
-   Afterwards "Remove a capture's staging" takes that printed line back, closes that space by its id, which ends its terminals, and removes the repo.
+   Afterwards "Remove a capture" takes that printed line back, closes that space by its id, which ends its terminals, and removes the repo.
    It closes and removes nothing unless the path is one "Stage a capture" makes and `herdr-app ls` lists a space of that id made on it.
    So a wrong id stops it, and so does an empty one: `space.close` with no `--id` closes whichever space has focus, which may be the one this work runs in.
    A closed space stays in Herdr's `recent` list, so `herdr-app ls` still names its folder there and nowhere else.
@@ -237,7 +265,7 @@ Before step 1:
    A file a release added to a shipped mod folder is copied into the clone when the clone needs it, before the clone file that uses it is saved.
    It gets a snapshot whether or not the clone takes it: a shipped file with no snapshot keeps the drift test skipping.
    Its path joins the file lists of "What Herdr changed" and "Move the snapshots", so the stamp copies it.
-   A clone file taken from it is a new pair: in "The clone's own changes", and in the tree, the table and the `.gitignore` sentence of Project structure.
+   A clone file taken from it is a new pair: in "What each clone changes", and in the tree, the table and the `.gitignore` sentence of Project structure.
    In the repo's `.gitignore` the snapshot needs its own exception after `herdr-app/upstream/mods/*/*` (`!herdr-app/upstream/mods/<mod>/<file>`), and the clone's copy one after `herdr-app/mods/*/*` unless it is a top-level `*.js`, `*.svg` or `mod.json`.
    A file in a subfolder needs three lines instead: `!<mod folder>/<folder>/`, `<mod folder>/<folder>/*` and `!<mod folder>/<folder>/<file>`.
    `git check-ignore <path>` prints nothing for each.
@@ -252,13 +280,16 @@ Before step 1:
    In the table, "before" takes the old "after", and the line under the table names the version.
 5. **Stamp.**
    First read `herdr-app --version` again: if it is not the version step 1 read, the app updated itself meanwhile, and the uptake goes back to step 1 with the clones as they are now.
-   Then "Move the snapshots" copies every shipped file over its snapshot, and "Set cloned_from.version" sets the version in both `mod.json` files and `layouts/cards.json`.
+   Then "Move the snapshots" copies every shipped file and renames each copy over its snapshot, and "Set cloned_from.version" sets the version in both `mod.json` files and `layouts/cards.json`.
    All three move together on every uptake, whichever files changed: the version says what `upstream/` holds.
-   If "Move the snapshots" stops, it has moved nothing: a shipped file is missing or not a regular file, which is not as Herdr ships it.
-   Herdr writes its shipped files whole on every start, so it is restarted, and the uptake goes back to step 1 with the clones as they are now.
+   If "Move the snapshots" stops before its renames, it has moved nothing: a check failed, or a copy into its staging folder did (a full disk), and the staging folder is removed.
+   A shipped file that is missing, not a regular file, or has a link or something other than a folder on its way is not as Herdr ships it: a link of the person's own on the way is taken out first, then Herdr is restarted, as it writes its shipped files whole on every start, and the uptake goes back to step 1 with the clones as they are now.
+   A snapshot that is not a regular file, has a link or something other than a folder on its way, or cannot be written, nor its folder or `upstream/`, is this repo's to put right before the move is run again.
+   A rename that fails once every copy is made (a disk error, or an ACL the checks cannot see, such as one denying a snapshot's delete) can leave some snapshots moved: once its cause is put right, the move is run again, as it copies every file whole.
+   A move stopped by the person (Ctrl-C) can leave its staging folder, `herdr-app/upstream/.move.*`, which git ignores: "Remove the staging folder of a stopped move" removes it, and the move is run again.
    Saving `cards.json` reloads the shown layout: no `layout.error` appears, and only what step 3 took changes on screen.
 6. **Prove.**
-   "The clone's own changes" compares, for every pair, the clone's own changes against the new snapshot with those against the old one.
+   "What each clone changes" compares, for every pair, the clone's own changes against the new snapshot with those against the old one.
    Each line it prints is read against step 1's diff, and is one of these:
    - a Herdr change skipped or carried elsewhere, with any clone line that matched only the old line;
    - a taken line renamed to the clone's name;
@@ -270,7 +301,7 @@ Before step 1:
    - `herdr-app check` prints `check passed` for both mods; its `WARN ... stranded script tasks` lines are the check ending the mod, and the shipped mods print them too.
    - `herdr-app status` lists `"errors": []`, and no `*.error` file exists.
    - The window, on the `cards` layout, shows each taken change that draws: captured again with `herdr-app shot` and compared with its "before" at full size.
-     The scratch repos, spaces and terminals made for it are removed afterwards, each with "Remove a capture's staging"; the shots stay until the commit.
+     The scratch repos, spaces and terminals made for it are removed afterwards, each with "Remove a capture"; the shots stay until the commit.
 7. **Commit.**
    Add the decisions log entry first: the version, what was taken, what was skipped and why, what was carried elsewhere, and each conflict resolved by hand.
    One commit then holds the clone files, `model.js` and its tests, the snapshots, the three versions, any `.gitignore` change, and this spec's edits, so the tree never holds a clone ahead of or behind its snapshot.
@@ -343,11 +374,14 @@ A title that is only an emoji is now telling, as it is in the agents list.
 ### Drift test
 
 `upstream/drift.js` exports `drift`, a function that takes the snapshot folder and the app folder, changes nothing, and returns what differs, by shipped mod or layout name.
-It also exports the live tests' `verdict`, below, and `CLONE_OF`, the clone file of each name; and, for the clones' own tests (see Tying test), `filesBelow`, which lists a folder as `drift` lists a mod folder, and `namesMod`, the pattern for code that names a mod.
+It also exports the live tests' `verdict`, below, `CLONE_OF`, the clone file of each name, and `snapshotLinks`, the links among the snapshots; and, for the clones' own tests (see Tying test), `filesBelow`, the walk `drift` lists a mod folder with before it leaves out the files the app writes, `codeIn`, which reads a mod folder's code with it, and `namesMod`, the pattern for code that names a mod.
 A name differs when one of its snapshot files is not byte-for-byte the shipped file, or when a shipped file has no snapshot: the layout file, or anything in its shipped mod folder that is not a folder, other than `gpui-kit.d.ts`, `jsconfig.json` and `.DS_Store`.
 A link is one entry, a link to a folder too: a mod folder is listed one level at a time and only its real folders are gone down into, so a link is never walked into.
 The mod folder itself is a real folder or differs: anything else at its path, on either side, a link or a file, differs whatever it holds or leads to.
 The folders above a name's path (`mods`, `layouts`) are only the way to it, and a link there is followed.
+The snapshot folder holds no link, at a snapshot, in a snapshot mod folder or on the way to one: a link there compares what it leads to, the shipped file itself too, and passes whatever Herdr changed.
+Nor does it hold a hard link, a snapshot file with another name: it shares its bytes with that name, which may be the shipped file itself.
+`snapshotLinks` lists any, walking a snapshot mod folder only when it and every folder on its way are real folders, and a test beside the live tests is red when it lists one: the snapshots are this repo's, never Herdr's.
 A snapshot file whose shipped file is gone from a mod folder that is still shipped differs too.
 Bytes are read only from two regular files of one size: anything else where a file was, on either side (a folder, a pipe whose read would wait), differs and is never read, and so does another size, which spares reading a file too large for Node to read whole (over 2 GiB).
 A name whose files or folders the file system refuses to look at (no permission, a link that leads back to itself, a path below a file) differs as well: what cannot be read cannot be shown to be its snapshot.
@@ -362,12 +396,12 @@ A name whose files or folders the file system refuses to look at (no permission,
 
 The version in the message is read from the clone's `cloned_from.version`.
 What a live test does is one function, `verdict` in `drift.js`: pass, skip with the message, or throw, red, when a clone file cannot be read or names no version, which is this repo's fault and never Herdr's.
-Beside the live tests, one test checks that the three clones name one version, one that the cards layout opens no shipped mod the clones stand in for (see Tying test), and one that it opens both clones, so the check before it is known to have read the blocks.
+Beside the live tests, one test checks that the three clones name one version, one that each clone's `cloned_from.name` is the name it stands in for, which the clones' own tests look for (see Tying test), one that no snapshot is a link or has one on its way, one that the cards layout opens no shipped mod the clones stand in for (see Tying test), and one that it opens both clones, so the check before it is known to have read the blocks.
 
 It is never a red failure: the app updates itself, and a red test after an update would block work that has nothing to do with the clones.
 The test run in Commands prints every skip, so the message is seen on the next run after an update.
 
-The same file tests `drift` and `verdict` themselves against temporary folders (same, one byte changed, a file added, an app-written file added, shipped files absent, a bad clone file), `filesBelow` against temporary folders (a real folder below, a link to its own folder, links to folders that branch, a `#` in a name), and `namesMod` against the ways code names a mod and a name holding a `.`, and those tests fail red like any other.
+The same file tests `drift` and `verdict` themselves against temporary folders (same, one byte changed, a file added, an app-written file added, shipped files absent, a bad clone file), `snapshotLinks` against temporary folders (no link, no snapshot yet, a link at each depth from `mods` and `layouts` down to a file, a link that leads nowhere, a link at a mod folder or at `mods` never walked into, a hard link at the layout and deep in a mod folder, two snapshots hard-linked to each other, a file in place of `mods` or `layouts`, which throws), `filesBelow` against temporary folders (a real folder below, a link to its own folder, links to folders that branch, a `#` in a name), `codeIn` against temporary folders (tests and other files left out, a pipe, a link to a file, a link that leads nowhere, a link that leads back to itself, a file it may not read, a link to a folder and one that leads nowhere, under any name), and `namesMod` against the ways code names a mod and a name holding a `.`, and those tests fail red like any other.
 The cases where the file system refuses a read are skipped when run as root, which no permission refuses.
 
 ### Tying test
@@ -396,7 +430,12 @@ The clones' names are tested where they are carried by hand too, where nothing e
 
 Each scan shows it read something: `main.js` is among the files a `clone.test.js` read, and the clones among the layout's mods.
 A scan that read nothing would pass every check that looks for a name.
-Both `clone.test.js` list the mod folder with `filesBelow` from `drift.js`, as `drift` lists a mod folder, never walking into a link, read each file by its path, and look for the shipped name with `namesMod`, so the two scans cannot drift apart.
+Both `clone.test.js` read the mod's code with `codeIn` from `drift.js`, which lists the mod folder with `filesBelow`, never walking into a link, and reads each file by its path, and both look with `namesMod` for the shipped name, read from the clone's own `cloned_from.name` and never typed in the test, so the two scans cannot drift apart.
+`drift.test.js` pins each `cloned_from.name` to the name the clone stands in for, so a wrong one is red rather than a scan for the wrong name.
+`codeIn` reads only a regular file, through a link too, so a pipe never hangs the scan, and lists unread a `.js` file it cannot read (a pipe, a link that leads nowhere or back to itself, a file the file system refuses) and anything else below the mod that is not a regular file, whatever its name, such as a link to a folder, which may hold code the mod runs and is never walked into.
+What it lists unread is red in a test of its own, as the scan cannot say what it names.
+`namesMod` looks for a `mod` key's value and a `mods/<name>/` path, and neither shipped mod names a mod any other way at 0.1.18.
+It does not look for a name passed another way, such as `name: "agents"` as `mod.open` takes it, `x.mod = "agents"`, a `["mod"]` key, a comment between key and value, or `mods/agents` with no `/` after it: an uptake that takes code naming a mod one of those ways adds it to `namesMod`, with a case beside its tests.
 
 ### Changes to the card sidebar documents
 
@@ -428,7 +467,7 @@ for (const name of Object.keys(CLONE_OF)) {
 }
 ```
 
-Snapshots are never edited: they are written only by `cp` from the shipped file.
+Snapshots are never edited: each is written only by `cp` from the shipped file, then renamed into place.
 
 ## Testing strategy
 
@@ -436,10 +475,10 @@ Snapshots are never edited: they are written only by `cp` from the shipped file.
 |---|---|---|
 | Unit | Emoji rows and status marks in `tellingTitle`; the hidden bare repo name beside the existing name cases in `gitInfo` | `node --test`, `spaces-cards/model.test.js` |
 | Unit | The tie between the title rule's regexes in the two mods: `clean`, the path test and its glyph strip | `node --test`, `spaces-cards/model.test.js` |
-| Unit | The tied lines of `agents-context` against its snapshot; its sort menu's own name; its scan reads `main.js`, and finds no `mod: "agents"` or `mods/agents/` in its code | `node --test`, `agents-context/clone.test.js` |
-| Unit | The scan of `spaces-cards` reads `main.js`, and finds no `mod: "spaces"` or `mods/spaces/` in its code | `node --test`, `spaces-cards/clone.test.js` |
-| Unit | `drift`, `verdict` and `filesBelow` against temporary folders; `namesMod` against the ways code names a mod; the three live tests; one version in the three clones; no block of `layouts/cards.json` opens `spaces` or `agents`, and blocks open both clones, which shows the layout's scan read its blocks | `node --test`, `upstream/drift.test.js` |
-| Mutation | The tying test, the drift test and the clones' names do fail or skip when they should | in a scratch copy: change one regex alone, then one shipped byte, then put a shipped name into a clone or the layout, and run |
+| Unit | The tied lines of `agents-context` against its snapshot; its sort menu's own name; its scan reads `main.js` and every file it lists, and finds no `mod: "agents"` or `mods/agents/` in its code | `node --test`, `agents-context/clone.test.js` |
+| Unit | The scan of `spaces-cards` reads `main.js` and every file it lists, and finds no `mod: "spaces"` or `mods/spaces/` in its code | `node --test`, `spaces-cards/clone.test.js` |
+| Unit | `drift`, `verdict`, `snapshotLinks`, `filesBelow` and `codeIn` against temporary folders; `namesMod` against the ways code names a mod; the three live tests; one version in the three clones, and each one's shipped name; no link or hard link among the snapshots; no block of `layouts/cards.json` opens `spaces` or `agents`, and blocks open both clones, which shows the layout's scan read its blocks | `node --test`, `upstream/drift.test.js` |
+| Mutation | The tying test, the drift test, the clones' names, `snapshotLinks` and `codeIn` do fail or skip when they should | in a scratch copy: change one regex alone, then one shipped byte, then put a shipped name into a clone or the layout, then a link, a hard link or a pipe where a test says none goes, then a fault into `snapshotLinks` or `codeIn`, and run |
 | Load | Each mod loads and renders once | `herdr-app check <mod>` after every edit |
 | End to end | The real window | `herdr-app shot`, inspected at full size |
 
@@ -597,7 +636,7 @@ Never:
   They list as `drift` does and read by path: with two links to folders in a scratch copy of the mod, the new walk passed at once and the old one was still running at 20 s.
   The shipped name is matched with `mod:` in either quote and any spacing, as `spaces-cards` is carried by hand, not in Herdr's spelling: this replaces the Checkpoint C review's answer on single quotes.
   Step 2 closed the capture's space with `space.close --confirmed true` and no `--id`, which closes the focused space, agents and all.
-  "Stage a capture" keeps the new space's id and "Remove a capture's staging" closes only it, stopping first on an empty id; run against the live window, the space was made, closed by its id, and its repo removed.
+  "Stage a capture" keeps the new space's id and "Remove a capture" closes only it, stopping first on an empty id; run against the live window, the space was made, closed by its id, and its repo removed.
   The merge's scratch file, which becomes live mod code, and the shots go to `$TMPDIR`, private to the user, not the shared `/tmp`.
   Answered, unchanged: `same` stats a file, then reads it again by path, so a file swapped in between could still hang or throw, in the owner's own folders.
   "The shipped title rule" builds its regexes with `new Function` from Herdr's own file, code that already runs here.
@@ -611,7 +650,7 @@ Never:
   Four cases test it on temporary folders, a real folder below, a link to its own folder, links to folders that branch, a `#` in a name, and each failed with a walker of its fault: Node's recursive listing, one that goes down a link, one that never goes down, one that builds paths through URLs.
   `namesMod` finds a shipped name written `"mod": "x"`, `mod : "x"` or ``mod: `x` ``, which the patterns of the round before missed, and passes over `x-clone`.
   It is tested beside `drift`, and each clone has one test that uses it, with a plain name; each form put into a clone's `main.js` turned the new test red and left the old ones green.
-  "Stage a capture" set two variables for "Remove a capture's staging", which a later shell does not have: an agent runs each command in a new one.
+  "Stage a capture" set two variables for "Remove a capture", which a later shell does not have: an agent runs each command in a new one.
   It is now one line that prints the space's id and the repo's path, and the removal takes that line back and stops unless the path is a capture's repo in `$TMPDIR`.
   Both ran against the live window: the space was made, closed by its id from the printed line in a new shell, and its repo removed; in bash and zsh, nine wrong lines stopped before `herdr-app` was called.
   Every temporary path is `${TMPDIR:?}`, which stops when `TMPDIR` is unset rather than write at the root.
@@ -639,6 +678,68 @@ Never:
   `namesMod` read a mod's name as a pattern: it now escapes it with `RegExp.escape`, and a test with a `.` in the name is red without that.
   A mod folder behind a link where `mods` was was never listed on the side with the link: two cases, one per side, add a file there, and each is red when that side lists nothing.
   Answered, unchanged: Task 10a in the plan still names `drift`'s walker `sources`, as that is what it built; and a `space.new` that fails leaves an empty repo in `$TMPDIR`, which nothing prints a line to remove.
+- 2026-11-24 (Checkpoint C ship fixes, third round, from the ship review of `530819d`): Each finding was fixed or answered, each gap was first seen in a scratch copy, and each new test was seen red.
+  "Move the snapshots" went on from a failed `cd herdr-app` with no file to check or copy, and exited 0 having moved nothing.
+  "What Herdr changed" did the same and printed nothing, which reads as nothing changed, and "What each clone changes" read the wrong folder.
+  Each of the three now starts `(cd ./herdr-app || exit 1`, and run from the wrong folder in bash and zsh each exits 1.
+  "Move the snapshots" checked a shipped file for a link, but not its folders or the snapshot it writes: in bash and zsh, a link at a snapshot made it write the shipped file where the link led, outside the tree.
+  It now checks every path before any copy: each shipped file a regular file, each snapshot one or not there yet, and no link on the way to either, `mods` and `upstream` included.
+  In bash and zsh, against scratch trees, each of these stopped it with no snapshot moved and nothing written outside: a link at a snapshot, at its mod folder or at `upstream/layouts`; a link at a shipped file, its mod folder or `mods`; a link that leads nowhere; a folder where a snapshot goes; a pipe; a missing file.
+  A good tree moved all five, and so did one with no `agents` snapshot yet.
+  Unlike `drift`, it refuses a link above a shipped file too: `drift` follows one so as never to pass in silence, while the move, which writes, copies only what it can vouch for and names the path that stopped it.
+  Step 5 said a stopped move had moved nothing, which held for its checks only: it now says what each stop asks for, and that a copy that fails after the checks is run again once its cause is put right.
+  A snapshot that is a link to its shipped file, or has one on its way (`upstream/mods`, `upstream/layouts`), passed the live tests whatever Herdr changed: in a scratch copy, a changed shipped `agents/main.js` behind such a link gave 94 passes and no skip.
+  `snapshotLinks` lists the links among the snapshots and on the way to them, and a test beside the live tests is red on any; `drift` is unchanged, as its cases pin a link above a name as followed on either side.
+  Of its nine cases on temporary folders, the seven with a link were red against a stub, and each of the nine was red with a fault put in: no dedupe, nothing looked at inside a mod folder, `stat` for `lstat`, every path taken as a link, the path without the way to it, a throw where no snapshot is.
+  In a scratch copy, the live test was red with a link at `upstream/mods/agents/main.js`, and with one at `upstream/layouts`.
+  Both `clone.test.js` read every file they listed, so a pipe named `*.js` hung them (killed at 10 s in a scratch copy), and a link was read wherever it led.
+  `codeIn` in `drift.js` now reads a mod's code for both, from regular files only, and lists anything else unread; a test in each clone is red on a file listed unread, seen with a pipe in each scratch clone and with a link that leads nowhere.
+  Its three cases were red against a stub, and the pipe case red at 5 s with a `codeIn` that reads every entry.
+  A link to a regular file is still read, as the mod runs what it leads to.
+  Each clone test typed the shipped name it looks for, where a typo would pass every check: each now reads it from its own `mod.json`'s `cloned_from.name`, which `mod.clone` wrote, and builds its `namesMod` pattern once, not once per file.
+  In scratch clones, a `mod: "agents"` and a `mods/spaces/` put in were each red, and a `mod.json` with no `cloned_from.name` was red.
+  `${TMPDIR:?}` in the merge check sat inside `<(...)`, where it stops only the substitution: with `TMPDIR` unset the outer `diff` printed 24 KB of misleading diff.
+  The line now starts `: "${TMPDIR:?}" &&`, and prints nothing then.
+  The Drift test section said `filesBelow` lists a folder as `drift` lists a mod folder, which also leaves out the files the app writes: it now says so, and `drift.js`'s comment on a mod folder that is not a real folder covers either side.
+  Answered, unchanged: `namesMod` does not look for `name: "agents"` as `mod.open` takes it, `x.mod = "agents"`, a `["mod"]` key, a comment between key and value, or `mods/agents` with no `/`.
+  Neither shipped mod names a mod those ways at 0.1.18, and Tying test now says so, and what an uptake that takes one does.
+  `[[:alnum:]]` in the capture removal matches letters such as `é` in a UTF-8 locale, but never a `/` or `.`: the path stays directly in `$TMPDIR`, and the id check still has to pass.
+  macOS's `TMPDIR` ends in `/`, so a capture's path holds `//`, which `herdr-app ls` gave back as made against the live window last round; a path given back any other way stops the removal rather than closing anything.
+  `alone` in `drift.test.js` puts a function's name into code unescaped, and is only called with names written in the test.
+  `same` stats a file, then reads it by path: answered in the Checkpoint C ship fixes entry.
+  The card sidebar spec's shot stays in `$TMPDIR`, private to the user, as that spec is done.
+  Found in its test step: a file or a pipe where a snapshot folder goes (`upstream/layouts`, `upstream/mods/agents`) passed every check, as a path below it is not there to `[ -e ]`, and in bash and zsh the copy moved four snapshots before `mkdir` stopped it.
+  The check of the way, now `realway`, also takes each folder on it to be a real folder or not there yet: in bash and zsh, against scratch trees, both stopped it with nothing moved, every case above still did, and the three good trees (one with no `upstream` at all) moved all five.
+  Found in its review: `-f` and `-L` cannot see a hard link, so `cp` wrote through one at a snapshot: in bash and zsh, a snapshot hard-linked to a file outside the tree overwrote that file with exit 0, and one hard-linked to another shipped file overwrote that shipped file.
+  The move now copies every shipped file into a staging folder, `upstream/.move.*`, and only once all five are copied renames each over its snapshot: a rename never writes into what was there.
+  Before any copy it also checks that each snapshot's folder, and each snapshot there, can be written: a folder set to 555 or 000, or a snapshot set to 444, 000 or locked with `chflags uchg`, now stops it with nothing moved, where the copy stopped after moving up to four.
+  A folder set to 555 with its snapshot in it now stops it too, where `cp` wrote over the snapshot, as a rename has to write the folder.
+  A copy into the staging folder that fails now moves nothing, and the staging folder is removed: step 5 says so, and that only a rename that fails, or the person's Ctrl-C, can leave some snapshots moved or the staging folder behind.
+  In bash and zsh, against 30 scratch trees each, every tree did as the spec says: the good trees moved all five; each tree with a link, a pipe, a folder or a file where it does not belong, a missing or unreadable shipped file, or a snapshot or folder that cannot be written stopped with nothing moved; the four hard-link trees moved all five with no file outside or shipped written; and none left a staging folder.
+  Run against the real tree, whose snapshots were byte-for-byte their shipped files, the move exited 0 and git saw no change.
+  A snapshot hard-linked to its shipped file also hid every change from `drift`, as `snapshotLinks` looked only for symbolic links: it now lists a snapshot file with another name too, and its two cases were red before.
+  `snapshotLinks` walked into a mod folder behind a link at `mods`: it now walks one only when it and every folder on its way are real folders, and a case with a link inside the folder `mods` led to was red before.
+  `stat` for `lstat` on the way, walking only the mod folder, a link count without the file check, and no hard links were each red with the fault put in.
+  The clone tests read the shipped name from `cloned_from.name`, which nothing checked: a test beside the live tests now pins each to the name its clone stands in for, red in a scratch copy with `spaces-cards` naming `agents`, and with `cards.json` naming none.
+  `codeIn` threw on a link that leads back to itself and on a file it may not read, which stopped the whole clone test file: it lists either unread now, through `orIfRefused`, which `drift` uses too, and both cases were red before.
+  bash goes to a `herdr-app` on `CDPATH` before the one here, which moved another tree's snapshots: the three blocks now start `cd ./herdr-app`, and the folder diff runs `cd ./upstream`; in bash and zsh, with `CDPATH` at another tree, the move wrote only this one.
+  `realway` holds the path it walks in a variable of its own, not the function's arguments, and stops at `/` as well as `.`.
+  Step 5 now takes out a link of the person's own on the way before Herdr is restarted, not after.
+  Answered, unchanged: `snapshotLinks` throws `ENOTDIR` where a file is in place of `upstream/mods`, which is red, as the snapshots are this repo's.
+  Found in its ship: the new comment of "Move the snapshots" held a `'`, and an interactive zsh, where `interactive_comments` is off by default and was off here, runs each `#` line as a command, so pasted there the `'` opened a quote that swallowed the block, which moved nothing.
+  Other blocks held a `'` in a comment too, and with the option off every `#` line prints an error: the Commands preamble now says to run `setopt interactive_comments` first, and that no comment in a block holds a `'`.
+  So "Remove a capture's staging" is now "Remove a capture" and "The clone's own changes" is now "What each clone changes", in the entries above too.
+  Pasted into `zsh -f -i`, and into `zsh -i` with its rc files read, the move moved all five with the option set, and all five with it off, with an error per comment line.
+  `mv` whose target is a link to a folder moves the file into that folder: in bash and zsh, a link to an outside folder put at a snapshot between the checks and the renames got the copy there, with exit 0, and with `mv -f -h` the link was replaced, and nothing written outside.
+  A rename also fails on an ACL the checks cannot see, such as `everyone deny delete` on a snapshot, which left four of five moved in a scratch tree: step 5 says so now.
+  Step 5 left a staging folder from a Ctrl-C to an `rm -rf` typed by hand: "Remove the staging folder of a stopped move" removes only a real folder directly in `upstream/` named as `mktemp` names it, and in bash and zsh it left a link, a file, a longer name, a nested folder and a linked `upstream/` as they were.
+  An `upstream/` that could not be written stopped the move at `mktemp`, with its own message: a check before any copy names it now.
+  `codeIn` passed over a link to a folder not named `*.js`, which `filesBelow` never walks into and which may hold code the mod runs: it now lists unread anything below the mod that is not a regular file, whatever its name.
+  Its case was red before, and each clone test was red in a scratch copy with a link to a folder in the clone.
+  `snapshotLinks` now has a case for two snapshots hard-linked to each other, which lists both, and two that pin its `ENOTDIR` where a file is in place of `mods` or `layouts`: each was red with its fault put in, a link count of 3 and an `lstat` that swallows errors.
+  `snapshotLinks` works out the way to each path once, the entry above says `(cd ./herdr-app || exit 1` as the blocks start now, and the Testing strategy rows name what the scans and mutations cover now.
+  Unit tests 182, 26 and 118 passing with no skip.
+  In bash and zsh, the move taken from this file did as it says for 14 scratch trees each, the ACL tree and a tree with `upstream/` set to 555 among them, and on the real tree it exited 0 with no change git sees.
 
 ## Open questions
 

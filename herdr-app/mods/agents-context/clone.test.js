@@ -1,8 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { filesBelow, namesMod } from "../../upstream/drift.js";
+import { codeIn, namesMod } from "../../upstream/drift.js";
 
 // This mod is the shipped agents list with its own changes, merged at each uptake: these read
 // it, and the snapshot of the version it was last merged with, as text.
@@ -39,17 +38,24 @@ test("every line that opens the sort menu opens this mod", () => {
 });
 
 // Taken code names this mod where Herdr's names the shipped one, in every file the mod runs.
-// Its tests are left out: they read the snapshot, under the shipped name. The folder is
-// listed as drift lists a mod folder: a link is a name, never walked into.
-const code = filesBelow(import.meta.dirname)
-  .filter((file) => file.endsWith(".js") && !file.endsWith(".test.js"))
-  .map((file) => ({ file, text: readFileSync(join(import.meta.dirname, file), "utf8") }));
+// Its tests are left out: they read the snapshot, under the shipped name. codeIn lists the
+// folder as drift lists a mod folder, never walking into a link, and reads only regular files.
+const code = codeIn(import.meta.dirname);
 
 // The checks below pass on a scan that read nothing: this one shows it read the mod.
 test("the scan reads main.js, the file this mod runs", () => {
   assert.ok(code.some(({ file }) => file === "main.js"), `the scan read ${code.length} files, not main.js`);
 });
 
-test("no file this mod runs names the shipped agents list", () => {
-  assert.deepEqual(code.filter(({ text }) => namesMod("agents").test(text)).map(({ file }) => file), []);
+// What is not a regular file is listed unread, whatever its name: the scan cannot say what it names.
+test("every file this mod could run is a file the scan read", () => {
+  assert.deepEqual(code.filter(({ text }) => text === null).map(({ file }) => file), []);
+});
+
+// The shipped mod this one stands in for, as mod.clone recorded it: never typed here.
+const shipped = JSON.parse(readFileSync(new URL("./mod.json", import.meta.url), "utf8")).cloned_from.name;
+
+test(`no file this mod runs names the shipped mod it was cloned from, ${shipped}`, () => {
+  const names = namesMod(shipped);
+  assert.deepEqual(code.filter(({ text }) => names.test(text)).map(({ file }) => file), []);
 });

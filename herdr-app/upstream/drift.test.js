@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
+import { chmodSync, linkSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { CLONE_OF, drift, filesBelow, namesMod, verdict } from "./drift.js";
+import { basename, dirname, join } from "node:path";
+import { CLONE_OF, codeIn, drift, filesBelow, namesMod, snapshotLinks, verdict } from "./drift.js";
 
 const SHIPPED = {
   "mods/spaces/main.js": "export default class Spaces {}\n",
@@ -340,6 +340,46 @@ test("filesBelow lists a name holding a # whole, as a path that reads the file",
   assert.equal(readFileSync(join(folder, listed[0]), "utf8"), "export const ab = 1;\n");
 });
 
+// codeIn is how the clones' own tests read the code their mod runs.
+const byFile = (code) => code.toSorted((a, b) => a.file.localeCompare(b.file));
+
+test("codeIn reads each .js file below a folder, its tests left out", (t) => {
+  const folder = folderOf(t, { "main.js": "a\n", "lib/util.js": "b\n", "main.test.js": "c\n", "mod.json": "{}\n", "icon.svg": "<svg/>\n" });
+  assert.deepEqual(byFile(codeIn(folder)), [{ file: "lib/util.js", text: "b\n" }, { file: "main.js", text: "a\n" }]);
+});
+
+test("codeIn lists a pipe with no text, without waiting for a writer", (t) => {
+  const folder = folderOf(t, { "main.js": "a\n" });
+  execFileSync("mkfifo", [join(folder, "stuck.js")]);
+  assert.deepEqual(byFile(alone("codeIn", folder)), [{ file: "main.js", text: "a\n" }, { file: "stuck.js", text: null }]);
+});
+
+test("codeIn reads a link to a file, and lists a link that leads nowhere with no text", (t) => {
+  const folder = folderOf(t, { "main.js": "a\n" });
+  symlinkSync("main.js", join(folder, "same.js"));
+  symlinkSync("gone.js", join(folder, "broken.js"));
+  assert.deepEqual(byFile(codeIn(folder)), [{ file: "broken.js", text: null }, { file: "main.js", text: "a\n" }, { file: "same.js", text: "a\n" }]);
+});
+
+test("codeIn lists a link that leads back to itself with no text", (t) => {
+  const folder = folderOf(t, { "main.js": "a\n" });
+  symlinkSync("loop.js", join(folder, "loop.js"));
+  assert.deepEqual(byFile(codeIn(folder)), [{ file: "loop.js", text: null }, { file: "main.js", text: "a\n" }]);
+});
+
+// A link to a folder may hold code the mod runs, under any name: filesBelow never walks into it.
+test("codeIn lists anything below a folder but a regular file with no text, whatever its name", (t) => {
+  const folder = folderOf(t, { "main.js": "a\n", "lib/x.js": "b\n", "README.md": "c\n" });
+  symlinkSync("lib", join(folder, "shared"));
+  symlinkSync("gone", join(folder, "broken"));
+  assert.deepEqual(byFile(codeIn(folder)), [
+    { file: "broken", text: null },
+    { file: "lib/x.js", text: "b\n" },
+    { file: "main.js", text: "a\n" },
+    { file: "shared", text: null },
+  ]);
+});
+
 // namesMod is what the clones' own tests look for a shipped mod's name with: taken code is
 // carried by hand too, so the name is found however it is written.
 test("namesMod finds a mod named in any quote and spacing, and its folder", () => {
@@ -369,6 +409,12 @@ test("namesMod reads a mod's name as it is written, never as a pattern", () => {
 
 // Root reads and searches whatever the permissions say: the refusals below never reach it.
 const refusable = { skip: process.getuid?.() === 0 && "run as root, which no permission refuses" };
+
+test("codeIn lists a file it may not read with no text", refusable, (t) => {
+  const folder = folderOf(t, { "main.js": "a\n", "secret.js": "b\n" });
+  chmodSync(join(folder, "secret.js"), 0o000);
+  assert.deepEqual(byFile(codeIn(folder)), [{ file: "main.js", text: "a\n" }, { file: "secret.js", text: null }]);
+});
 
 for (const mod of ["spaces", "agents"]) {
   test(`drift reports ${mod} when one of its shipped files is now a link that leads back to itself`, (t) => {
@@ -417,6 +463,75 @@ test("drift throws an error that is not the file system's: a fault in it is neve
   const [, app] = folders(t, SHIPPED, SHIPPED);
   assert.throws(() => drift(undefined, app), { code: "ERR_INVALID_ARG_TYPE" });
 });
+
+// A snapshot is a file cp wrote: a link among the snapshots, or on the way to one, compares
+// what it leads to, the shipped file itself too, and hides every change; a hard link shares
+// its bytes with its other name, the shipped file itself too.
+const SNAPSHOT_TREE = { ...SHIPPED, "mods/spaces/fonts/pixel.ttf": "font\n" };
+
+// Moves what is at a path of the snapshot folder out of it, and puts a link to it there.
+const linkAway = (snapshots, path) => {
+  const away = join(dirname(snapshots), "elsewhere", basename(path));
+  mkdirSync(dirname(away), { recursive: true });
+  renameSync(join(snapshots, path), away);
+  symlinkSync(away, join(snapshots, path));
+  return away;
+};
+
+test("snapshotLinks finds no link among snapshots that are files and folders", (t) => {
+  assert.deepEqual(snapshotLinks(folderOf(t, SNAPSHOT_TREE)), []);
+});
+
+test("snapshotLinks finds no link where there is no snapshot yet", (t) => {
+  assert.deepEqual(snapshotLinks(folderOf(t, {})), []);
+});
+
+for (const path of ["layouts/main.json", "mods/agents/main.js", "mods/spaces/fonts", "mods/agents", "mods", "layouts"]) {
+  test(`snapshotLinks finds a link at ${path} to what was there`, (t) => {
+    const snapshots = folderOf(t, SNAPSHOT_TREE);
+    linkAway(snapshots, path);
+    assert.deepEqual(snapshotLinks(snapshots), [path]);
+  });
+}
+
+test("snapshotLinks finds a link that leads nowhere", (t) => {
+  const snapshots = folderOf(t, without(SNAPSHOT_TREE, "mods/agents/mod.json"));
+  symlinkSync("gone.json", join(snapshots, "mods/agents/mod.json"));
+  assert.deepEqual(snapshotLinks(snapshots), ["mods/agents/mod.json"]);
+});
+
+// Walked into, the folder a link leads to would show its own links as the snapshots'.
+for (const [path, inside] of [["mods/agents", "same.js"], ["mods", "agents/same.js"]]) {
+  test(`snapshotLinks never walks into a link at ${path}`, (t) => {
+    const snapshots = folderOf(t, SNAPSHOT_TREE);
+    symlinkSync("main.js", join(linkAway(snapshots, path), inside));
+    assert.deepEqual(snapshotLinks(snapshots), [path]);
+  });
+}
+
+for (const path of ["layouts/main.json", "mods/spaces/fonts/pixel.ttf"]) {
+  test(`snapshotLinks finds a hard link at ${path}`, (t) => {
+    const snapshots = folderOf(t, SNAPSHOT_TREE);
+    mkdirSync(join(dirname(snapshots), "elsewhere"));
+    linkSync(join(snapshots, path), join(dirname(snapshots), "elsewhere", basename(path)));
+    assert.deepEqual(snapshotLinks(snapshots), [path]);
+  });
+}
+
+test("snapshotLinks finds both names of two snapshots hard-linked to each other", (t) => {
+  const snapshots = folderOf(t, without(SNAPSHOT_TREE, "mods/agents/mod.json"));
+  linkSync(join(snapshots, "mods/spaces/mod.json"), join(snapshots, "mods/agents/mod.json"));
+  assert.deepEqual(snapshotLinks(snapshots).toSorted(), ["mods/agents/mod.json", "mods/spaces/mod.json"]);
+});
+
+// The snapshots are this repo's: a file in place of a folder on their way is a fault here, and red.
+for (const path of ["mods", "layouts"]) {
+  test(`snapshotLinks throws where a file is in place of the folder ${path}`, (t) => {
+    const outside = Object.entries(SNAPSHOT_TREE).filter(([file]) => !file.startsWith(`${path}/`));
+    const snapshots = folderOf(t, { ...Object.fromEntries(outside), [path]: "x\n" });
+    assert.throws(() => snapshotLinks(snapshots), { code: "ENOTDIR" });
+  });
+}
 
 // The clones in the app folder, each naming another version: each name reads its own.
 const cloneOf = (name, version) => `${JSON.stringify({ place: "none", cloned_from: { name, version } })}\n`;
@@ -472,10 +587,22 @@ test("verdict throws when the clone file of a name cannot be read", refusable, (
 const SNAPSHOTS = import.meta.dirname;
 const APP = join(SNAPSHOTS, "..");
 
+const clonedFrom = (clone) => JSON.parse(readFileSync(join(APP, clone), "utf8")).cloned_from;
+
 test("the three clones name one version: an uptake moves all three together", () => {
-  const taken = Object.values(CLONE_OF).map((clone) => ({ clone, version: JSON.parse(readFileSync(join(APP, clone), "utf8")).cloned_from.version }));
+  const taken = Object.values(CLONE_OF).map((clone) => ({ clone, version: clonedFrom(clone).version }));
   const named = taken.map(({ clone, version }) => `${clone} ${version}`).join(", ");
   assert.equal(new Set(taken.map(({ version }) => version)).size, 1, `the clones name more than one version: ${named}`);
+});
+
+// The clones' own tests look for the shipped name cloned_from.name records: this pins it.
+test("each clone names the shipped name it stands in for", () => {
+  for (const [name, clone] of Object.entries(CLONE_OF)) assert.equal(clonedFrom(clone).name, name, clone);
+});
+
+// A link among the snapshots would pass the live tests below whatever Herdr changed.
+test("no snapshot is a link, nor has one on its way", () => {
+  assert.deepEqual(snapshotLinks(SNAPSHOTS), []);
 });
 
 // Every mod a layout names, at any depth: its blocks, floating blocks and pane headers.
